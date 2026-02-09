@@ -21,13 +21,24 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
     resolve_globals(&mut pa, deps);
 
     // Read plaintext from exactly one source
-    let plaintext = match read_plaintext(&pa, deps) {
+    let mut plaintext = match read_plaintext(&pa, deps) {
         Ok(p) => p,
         Err(e) => {
             write_error(&mut deps.stderr, pa.json, &e);
             return 2;
         }
     };
+
+    // Apply --trim if requested
+    if pa.trim {
+        let trimmed = String::from_utf8_lossy(&plaintext);
+        let trimmed = trimmed.trim();
+        if trimmed.is_empty() {
+            write_error(&mut deps.stderr, pa.json, "input is empty after trimming");
+            return 2;
+        }
+        plaintext = trimmed.as_bytes().to_vec();
+    }
 
     // Parse TTL
     let ttl_seconds = if !pa.ttl.is_empty() {
@@ -73,6 +84,10 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
     };
 
     // Upload to server
+    if (deps.is_tty)() {
+        let _ = write!(deps.stderr, "Encrypting and uploading...");
+        let _ = deps.stderr.flush();
+    }
     let client = (deps.make_api)(&pa.base_url, &pa.api_key);
 
     let resp = match client.create(CreateRequest {
@@ -80,8 +95,16 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
         claim_hash: result.claim_hash,
         ttl_seconds,
     }) {
-        Ok(r) => r,
+        Ok(r) => {
+            if (deps.is_tty)() {
+                let _ = writeln!(deps.stderr);
+            }
+            r
+        }
         Err(e) => {
+            if (deps.is_tty)() {
+                let _ = writeln!(deps.stderr);
+            }
             write_error(&mut deps.stderr, pa.json, &e);
             return 1;
         }
@@ -131,10 +154,21 @@ fn read_plaintext(pa: &ParsedArgs, deps: &mut Deps) -> Result<Vec<u8>, String> {
     }
 
     // stdin
-    if (deps.is_tty)() {
-        let _ = writeln!(deps.stderr, "Enter secret (Ctrl+D to finish):");
+    if (deps.is_tty)() && !pa.multi_line {
+        // Default interactive: single-line, no echo (like a password prompt)
+        let secret = (deps.read_pass)("Enter secret (input hidden): ", &mut deps.stderr)
+            .map_err(|e| format!("read secret: {}", e))?;
+        if secret.is_empty() {
+            return Err("input is empty".into());
+        }
+        return Ok(secret.into_bytes());
     }
 
+    if (deps.is_tty)() && pa.multi_line {
+        let _ = writeln!(deps.stderr, "Enter secret (Ctrl+D on empty line to finish):");
+    }
+
+    // Multi-line TTY or piped/redirected stdin: read all bytes
     let mut data = Vec::new();
     deps.stdin
         .read_to_end(&mut data)

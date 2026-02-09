@@ -204,6 +204,62 @@
         ]
       },
       {
+        "id": 9,
+        "title": "Redesign interactive secret input: single-line default, --multi-line, --trim",
+        "description": "Redesign how `secrt create` reads secrets interactively (TTY mode). Currently uses read_pass for single-line input with no echo. This task formalizes the behavior with explicit flags and clear UX.\n\nDesign:\n| Flag | Behavior |\n|------|----------|\n| (none) | Single-line: password-style prompt (no echo), read until Enter, strip trailing newline |\n| --multi-line, -m | Multi-line: read until Ctrl+D, preserve exact bytes (no trimming) |\n| --trim | Modifier: explicitly trim leading/trailing whitespace (including \\r, \\n) |\n\nKey decisions:\n- Default (no flags) is optimized for the most common case: sharing passwords, API keys, tokens. Single-line, no echo, safe.\n- --multi-line is for power users who need to paste blocks of text (SSH keys, certs, config snippets). Preserves exact bytes — if user presses Ctrl+D on its own line, the trailing \\n is included. If they Ctrl+D immediately after text, no trailing \\n. User controls this.\n- --trim is an optional modifier, primarily useful with --multi-line. Strips leading/trailing whitespace including newlines. Rare use case but available.\n- No --raw flag needed — --multi-line is effectively raw.\n- Piped/redirected stdin (non-TTY) behavior is unchanged: read all bytes until EOF.\n- --text and --file flags are unaffected by this change.\n\nUX details:\n- Single-line prompt should say something like 'Enter secret (input hidden):' so users understand why nothing appears\n- Multi-line prompt: 'Enter secret (Ctrl+D on empty line to finish):' or similar\n- Consider showing byte count after input: 'Received N bytes' on stderr",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [],
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add --multi-line (-m) and --trim flags to arg parser",
+            "description": "Add multi_line: bool and trim: bool fields to ParsedArgs. Parse --multi-line / -m and --trim flags in parse_flags(). Update help text to document both flags. -t shorthand for --trim only if it doesn't conflict with --text (which uses --text, not -t, so -t should be safe).",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Refactor read_plaintext for single-line vs multi-line TTY input",
+            "description": "In TTY mode:\n- Default (no --multi-line): use deps.read_pass to read single line without echo, strip trailing newline. Prompt: 'Enter secret (input hidden):'\n- With --multi-line: use deps.stdin.read_to_end to read until EOF (Ctrl+D). Prompt: 'Enter secret (Ctrl+D on empty line to finish):'. Show input (echo enabled) since multi-line users need to see what they're typing.\n\nNon-TTY mode: unchanged (read_to_end from stdin regardless of flags).",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement --trim flag behavior",
+            "description": "When --trim is set, trim leading and trailing whitespace (including \\r, \\n, spaces, tabs) from the plaintext after reading. Apply after read_plaintext returns, before the empty check. Works with any input source (stdin, --text, --file, --multi-line). After trimming, if the result is empty, return the 'input is empty' error.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Add tests for new flags and input modes",
+            "description": "Tests to add:\n- Single-line TTY: verify read_pass is used, no echo, trailing newline stripped\n- --multi-line TTY: verify read_to_end is used, exact bytes preserved\n- --multi-line with trailing newline: verify newline is kept\n- --trim: verify whitespace stripped from all edges\n- --trim with --multi-line: verify both work together\n- --trim making input empty: verify error\n- Non-TTY: verify --multi-line has no effect (already reads all bytes)\n- Unknown flag errors still work\n- Help text includes new flags",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Update help text and documentation",
+            "description": "Update create command help text to document --multi-line (-m) and --trim flags with clear descriptions. Update README if it documents the create command. Ensure the interactive prompts clearly communicate what's happening (e.g., 'input hidden' for single-line, 'Ctrl+D to finish' for multi-line).",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Hash owner_key (IP address) for privacy",
+        "description": "The backend stores raw IP addresses as owner_key in the secrets table for per-IP quota enforcement and burn authorization. This is at odds with the zero-knowledge design. Replace raw IPs with a keyed hash (e.g., HMAC-SHA256(ip, daily_rotating_secret)) so quotas still work but the DB never contains recoverable IP addresses. Considerations:\n- Burn authorization still works since the same IP produces the same hash within the rotation window\n- DB performance is unaffected: same indexed column, just matching on hash strings instead of IPs\n- Daily salt rotation means old records can't be correlated with new ones after rotation\n- Authenticated users (API key) can keep using 'apikey:' + prefix as-is since that's already non-PII\n- May want a migration to hash existing owner_key values in-place\n- Consider whether server logs also need IP scrubbing for consistency",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [],
+        "subtasks": [
+          { "id": 1, "title": "Add HMAC-SHA256 helper with rotating daily secret", "status": "pending" },
+          { "id": 2, "title": "Replace raw IP storage with hashed owner_key in Create handler", "status": "pending" },
+          { "id": 3, "title": "Update clientIP/ownerKey resolution in Burn handler", "status": "pending" },
+          { "id": 4, "title": "Write migration to hash existing owner_key values", "status": "pending" },
+          { "id": 5, "title": "Add tests for hashed quota enforcement and burn auth", "status": "pending" },
+          { "id": 6, "title": "Review server access logs for IP leakage", "status": "pending" }
+        ]
+      },
+      {
         "id": 8,
         "title": "Add coverage exclusion annotations to untestable code",
         "description": "Rust's #[coverage(off)] attribute is still unstable (tracking issue rust-lang/rust#134749). Once stabilized on stable Rust, annotate the ~129 lines of genuinely untestable code (main.rs I/O wiring, ring crypto internal errors, unreachable branches) so cargo llvm-cov reports accurate achievable coverage. See docs/test-coverage.md 'Theoretical Coverage Ceiling' section for the full list.",

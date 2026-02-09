@@ -57,30 +57,63 @@ impl ApiClient {
         ureq::Agent::new_with_config(
             ureq::config::Config::builder()
                 .timeout_global(Some(Duration::from_secs(30)))
+                .http_status_as_error(false)
                 .build(),
         )
     }
 
     fn handle_ureq_error(&self, err: ureq::Error) -> String {
-        match err {
-            ureq::Error::StatusCode(status) => {
-                format!("server error ({})", status)
-            }
-            other => format!("HTTP request failed: {}", other),
+        let msg = err.to_string();
+        if msg.contains("tls") || msg.contains("certificate") || msg.contains("ssl") {
+            format!("TLS error connecting to {}: {}", self.base_url, msg)
+        } else if msg.contains("dns")
+            || msg.contains("resolve")
+            || msg.contains("No such host")
+        {
+            format!("cannot resolve host {}: {}", self.base_url, msg)
+        } else if msg.contains("timed out") || msg.contains("timeout") {
+            format!("connection to {} timed out", self.base_url)
+        } else if msg.contains("Connection refused") || msg.contains("connection refused") {
+            format!("connection refused by {}", self.base_url)
+        } else {
+            format!("HTTP request failed: {}", msg)
         }
     }
 
     fn read_api_error_from_response(&self, resp: ureq::http::Response<ureq::Body>) -> String {
         let status = resp.status().as_u16();
-        if let Ok(body_str) = resp.into_body().read_to_string() {
-            if let Ok(err_resp) = serde_json::from_str::<ApiErrorResponse>(&body_str) {
-                if !err_resp.error.is_empty() {
-                    return format!("server error ({}): {}", status, err_resp.error);
-                }
-            }
-        }
-        format!("server error ({})", status)
+        let body = resp.into_body().read_to_string().unwrap_or_default();
+        format_api_error(status, &body)
     }
+}
+
+/// Friendly fallback error message for HTTP status codes when the server
+/// provides no JSON error body.
+fn format_status_error(status: u16) -> String {
+    let desc = match status {
+        401 => "unauthorized; check your API key",
+        403 => "forbidden",
+        404 => "secret not found or already claimed",
+        429 => "rate limit exceeded; please try again in a few seconds",
+        500 | 502 | 503 => "server is temporarily unavailable; please try again later",
+        _ => "",
+    };
+    if desc.is_empty() {
+        format!("server error ({})", status)
+    } else {
+        format!("server error ({}): {}", status, desc)
+    }
+}
+
+/// Format an API error from a JSON body and status code.
+/// Returns `None` if the body doesn't contain a valid error message.
+fn format_api_error(status: u16, body: &str) -> String {
+    if let Ok(err_resp) = serde_json::from_str::<ApiErrorResponse>(body) {
+        if !err_resp.error.is_empty() {
+            return format!("server error ({}): {}", status, err_resp.error);
+        }
+    }
+    format_status_error(status)
 }
 
 impl SecretApi for ApiClient {
@@ -170,5 +203,135 @@ impl SecretApi for ApiClient {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- format_status_error: friendly fallback messages ---
+
+    #[test]
+    fn status_429_rate_limit() {
+        let msg = format_status_error(429);
+        assert_eq!(
+            msg,
+            "server error (429): rate limit exceeded; please try again in a few seconds"
+        );
+    }
+
+    #[test]
+    fn status_401_unauthorized() {
+        let msg = format_status_error(401);
+        assert_eq!(msg, "server error (401): unauthorized; check your API key");
+    }
+
+    #[test]
+    fn status_403_forbidden() {
+        let msg = format_status_error(403);
+        assert_eq!(msg, "server error (403): forbidden");
+    }
+
+    #[test]
+    fn status_404_not_found() {
+        let msg = format_status_error(404);
+        assert_eq!(
+            msg,
+            "server error (404): secret not found or already claimed"
+        );
+    }
+
+    #[test]
+    fn status_500_unavailable() {
+        let msg = format_status_error(500);
+        assert_eq!(
+            msg,
+            "server error (500): server is temporarily unavailable; please try again later"
+        );
+    }
+
+    #[test]
+    fn status_502_unavailable() {
+        let msg = format_status_error(502);
+        assert_eq!(
+            msg,
+            "server error (502): server is temporarily unavailable; please try again later"
+        );
+    }
+
+    #[test]
+    fn status_503_unavailable() {
+        let msg = format_status_error(503);
+        assert_eq!(
+            msg,
+            "server error (503): server is temporarily unavailable; please try again later"
+        );
+    }
+
+    #[test]
+    fn status_unknown_code() {
+        let msg = format_status_error(418);
+        assert_eq!(msg, "server error (418)");
+    }
+
+    // --- format_api_error: JSON body parsing + fallback ---
+
+    #[test]
+    fn api_error_json_body() {
+        let body = r#"{"error":"rate limit exceeded; please try again in a few seconds"}"#;
+        let msg = format_api_error(429, body);
+        assert_eq!(
+            msg,
+            "server error (429): rate limit exceeded; please try again in a few seconds"
+        );
+    }
+
+    #[test]
+    fn api_error_custom_message() {
+        let body = r#"{"error":"quota exceeded for your plan"}"#;
+        let msg = format_api_error(429, body);
+        assert_eq!(msg, "server error (429): quota exceeded for your plan");
+    }
+
+    #[test]
+    fn api_error_empty_json_error_falls_back() {
+        let body = r#"{"error":""}"#;
+        let msg = format_api_error(429, body);
+        assert_eq!(
+            msg,
+            "server error (429): rate limit exceeded; please try again in a few seconds"
+        );
+    }
+
+    #[test]
+    fn api_error_invalid_json_falls_back() {
+        let msg = format_api_error(429, "not json");
+        assert_eq!(
+            msg,
+            "server error (429): rate limit exceeded; please try again in a few seconds"
+        );
+    }
+
+    #[test]
+    fn api_error_empty_body_falls_back() {
+        let msg = format_api_error(429, "");
+        assert_eq!(
+            msg,
+            "server error (429): rate limit exceeded; please try again in a few seconds"
+        );
+    }
+
+    #[test]
+    fn api_error_unknown_status_no_json() {
+        let msg = format_api_error(418, "");
+        assert_eq!(msg, "server error (418)");
+    }
+
+    #[test]
+    fn api_error_server_message_overrides_fallback() {
+        let body = r#"{"error":"custom server message"}"#;
+        let msg = format_api_error(500, body);
+        assert_eq!(msg, "server error (500): custom server message");
     }
 }

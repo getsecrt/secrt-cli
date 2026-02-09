@@ -43,6 +43,8 @@ pub struct ParsedArgs {
     pub ttl: String,
     pub text: String,
     pub file: String,
+    pub multi_line: bool,
+    pub trim: bool,
 
     // Passphrase
     pub passphrase_prompt: bool,
@@ -199,6 +201,8 @@ pub fn parse_flags(args: &[String]) -> Result<ParsedArgs, CliError> {
                 }
                 pa.file = args[i].clone();
             }
+            "--multi-line" | "-m" => pa.multi_line = true,
+            "--trim" => pa.trim = true,
             "--passphrase-prompt" => pa.passphrase_prompt = true,
             "--passphrase-env" => {
                 i += 1;
@@ -337,19 +341,21 @@ pub fn print_create_help(deps: &mut Deps) {
         "{} {} — Encrypt and upload a secret\n\n\
 {}\n  {} {} {}\n\n\
 {}\n\
-  {} {}         TTL for the secret (e.g., 5m, 2h, 1d)\n\
-  {} {}     Secret text (visible in shell history)\n\
-  {} {}     Read secret from file\n\
-  {}     Prompt for passphrase\n\
-  {} {}  Read passphrase from env var\n\
+  {} {}               TTL for the secret (e.g., 5m, 2h, 1d)\n\
+  {} {}            Secret text (visible in shell history)\n\
+  {} {}             Read secret from file\n\
+  {}          Multi-line input (read until Ctrl+D)\n\
+  {}                    Trim leading/trailing whitespace\n\
+  {}       Prompt for passphrase\n\
+  {} {}   Read passphrase from env var\n\
   {} {}  Read passphrase from file\n\
-  {} {}     Server URL\n\
-  {} {}      API key\n\
-  {}               Output as JSON\n\
-  {}           Show help\n\n\
+  {} {}          Server URL\n\
+  {} {}           API key\n\
+  {}                    Output as JSON\n\
+  {}                Show help\n\n\
 {}\n\
-  Reads from stdin by default. Use {} or {} for alternatives.\n\
-  Exactly one input source must be selected.\n\n\
+  Interactive: single-line hidden input (like a password).\n\
+  Use {} for multi-line input, {} or {} for alternatives.\n\n\
 {}\n\
   echo \"secret\" | {} {}\n\
   {} {} {} \"my secret\" {} 5m\n",
@@ -366,6 +372,8 @@ pub fn print_create_help(deps: &mut Deps) {
         c("2", "<value>"),
         c("33", "--file"),
         c("2", "<path>"),
+        c("33", "-m, --multi-line"),
+        c("33", "--trim"),
         c("33", "--passphrase-prompt"),
         c("33", "--passphrase-env"),
         c("2", "<name>"),
@@ -378,6 +386,7 @@ pub fn print_create_help(deps: &mut Deps) {
         c("33", "--json"),
         c("33", "-h, --help"),
         c("1", "INPUT"),
+        c("33", "-m"),
         c("33", "--text"),
         c("33", "--file"),
         c("1", "EXAMPLES"),
@@ -397,12 +406,12 @@ pub fn print_claim_help(deps: &mut Deps) {
         "{} {} — Retrieve and decrypt a secret\n\n\
 {}\n  {} {} {} {}\n\n\
 {}\n\
-  {}     Prompt for passphrase\n\
-  {} {}  Read passphrase from env var\n\
+  {}       Prompt for passphrase\n\
+  {} {}   Read passphrase from env var\n\
   {} {}  Read passphrase from file\n\
-  {} {}     Server URL\n\
-  {}               Output as JSON\n\
-  {}           Show help\n\n\
+  {} {}          Server URL\n\
+  {}                    Output as JSON\n\
+  {}                Show help\n\n\
 {}\n\
   {} {} https://secrt.ca/s/abc#v1.key\n",
         c("36", "secrt"),
@@ -435,10 +444,10 @@ pub fn print_burn_help(deps: &mut Deps) {
         "{} {} — Destroy a secret (requires API key)\n\n\
 {}\n  {} {} {} {}\n\n\
 {}\n\
-  {} {}      API key (required)\n\
-  {} {}     Server URL\n\
-  {}               Output as JSON\n\
-  {}           Show help\n\n\
+  {} {}           API key (required)\n\
+  {} {}          Server URL\n\
+  {}                    Output as JSON\n\
+  {}                Show help\n\n\
 {}\n\
   {} {} test-id {} sk_prefix.secret\n",
         c("36", "secrt"),
@@ -516,6 +525,31 @@ mod tests {
     fn flags_file() {
         let pa = parse_flags(&s(&["--file", "/tmp/secret.txt"])).unwrap();
         assert_eq!(pa.file, "/tmp/secret.txt");
+    }
+
+    #[test]
+    fn flags_multi_line() {
+        let pa = parse_flags(&s(&["--multi-line"])).unwrap();
+        assert!(pa.multi_line);
+    }
+
+    #[test]
+    fn flags_multi_line_short() {
+        let pa = parse_flags(&s(&["-m"])).unwrap();
+        assert!(pa.multi_line);
+    }
+
+    #[test]
+    fn flags_trim() {
+        let pa = parse_flags(&s(&["--trim"])).unwrap();
+        assert!(pa.trim);
+    }
+
+    #[test]
+    fn flags_multi_line_and_trim() {
+        let pa = parse_flags(&s(&["--multi-line", "--trim"])).unwrap();
+        assert!(pa.multi_line);
+        assert!(pa.trim);
     }
 
     #[test]

@@ -198,7 +198,9 @@ impl TestDepsBuilder {
                 rng.fill(buf)
                     .map_err(|_| EnvelopeError::RngError("SystemRandom failed".into()))
             }),
-            read_pass: Box::new(move |_prompt: &str, _w: &mut dyn Write| {
+            read_pass: Box::new(move |prompt: &str, w: &mut dyn Write| {
+                let _ = w.write_all(prompt.as_bytes());
+                let _ = w.flush();
                 if let Some(ref msg) = read_pass_error {
                     return Err(io::Error::new(io::ErrorKind::Other, msg.clone()));
                 }
