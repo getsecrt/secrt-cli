@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Pre-release checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: cargo clippy -- -D warnings
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: darwin-arm64
+            target: aarch64-apple-darwin
+            runner: macos-latest
+            tool: cargo
+            artifact: secrt-darwin-arm64
+          - name: darwin-amd64
+            target: x86_64-apple-darwin
+            runner: macos-13
+            tool: cargo
+            artifact: secrt-darwin-amd64
+          - name: linux-amd64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            tool: cross
+            artifact: secrt-linux-amd64
+          - name: linux-arm64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            tool: cross
+            artifact: secrt-linux-arm64
+          - name: windows-amd64
+            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            tool: cargo
+            artifact: secrt-windows-amd64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Install cross for musl builds (handles ring's C/asm compilation in Docker)
+      - name: Install cross
+        if: matrix.tool == 'cross'
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build
+        run: ${{ matrix.tool }} build --release --target ${{ matrix.target }}
+
+      # TODO: macOS code signing (task #4)
+      # codesign --sign "Developer ID Application: ..." --options runtime --timestamp <binary>
+      # xcrun notarytool submit ... --wait
+
+      # TODO: Windows code signing with SSL.com eSigner (task #5)
+      # CodeSignTool sign -input_file_path=secrt.exe ...
+
+      - name: Rename binary (unix)
+        if: runner.os != 'Windows'
+        run: cp target/${{ matrix.target }}/release/secrt ${{ matrix.artifact }}
+
+      - name: Rename binary (windows)
+        if: runner.os == 'Windows'
+        run: cp target/${{ matrix.target }}/release/secrt.exe ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  universal-macos:
+    name: Universal macOS binary
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - name: Download macOS ARM binary
+        uses: actions/download-artifact@v4
+        with:
+          name: secrt-darwin-arm64
+
+      - name: Download macOS Intel binary
+        uses: actions/download-artifact@v4
+        with:
+          name: secrt-darwin-amd64
+
+      - name: Create universal binary
+        run: |
+          lipo -create secrt-darwin-arm64 secrt-darwin-amd64 -output secrt-darwin-universal
+          chmod +x secrt-darwin-universal
+          lipo -info secrt-darwin-universal
+
+      # TODO: Sign the universal binary (task #4)
+      # codesign --sign "Developer ID Application: ..." --options runtime --timestamp secrt-darwin-universal
+      # xcrun notarytool submit ... --wait
+
+      - name: Upload universal binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrt-darwin-universal
+          path: secrt-darwin-universal
+
+  release:
+    name: Publish release
+    needs: [build, universal-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Generate checksums
+        working-directory: artifacts
+        run: sha256sum secrt-darwin-* secrt-linux-* secrt-windows-* > secrt-checksums-sha256.txt
+
+      - name: Show checksums
+        run: cat artifacts/secrt-checksums-sha256.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/secrt-darwin-arm64
+            artifacts/secrt-darwin-amd64
+            artifacts/secrt-darwin-universal
+            artifacts/secrt-linux-amd64
+            artifacts/secrt-linux-arm64
+            artifacts/secrt-windows-amd64.exe
+            artifacts/secrt-checksums-sha256.txt

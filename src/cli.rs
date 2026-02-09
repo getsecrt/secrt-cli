@@ -8,12 +8,14 @@ use crate::completion::{BASH_COMPLETION, FISH_COMPLETION, ZSH_COMPLETION};
 use crate::create::run_create;
 
 const DEFAULT_BASE_URL: &str = "https://secrt.ca";
-const VERSION: &str = "dev";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub type GetenvFn = Box<dyn Fn(&str) -> Option<String>>;
 pub type RandBytesFn = Box<dyn Fn(&mut [u8]) -> Result<(), crate::envelope::EnvelopeError>>;
 pub type ReadPassFn = Box<dyn Fn(&str, &mut dyn Write) -> io::Result<String>>;
 pub type MakeApiFn = Box<dyn Fn(&str, &str) -> Box<dyn SecretApi>>;
+pub type KeychainGetFn = Box<dyn Fn(&str) -> Option<String>>;
+pub type KeychainListFn = Box<dyn Fn(&str) -> Vec<String>>;
 
 /// Injectable dependencies for testing.
 pub struct Deps {
@@ -26,8 +28,8 @@ pub struct Deps {
     pub rand_bytes: RandBytesFn,
     pub read_pass: ReadPassFn,
     pub make_api: MakeApiFn,
-    pub get_keychain_secret: Box<dyn Fn(&str) -> Option<String>>,
-    pub get_keychain_secret_list: Box<dyn Fn(&str) -> Vec<String>>,
+    pub get_keychain_secret: KeychainGetFn,
+    pub get_keychain_secret_list: KeychainListFn,
 }
 
 /// Parsed global and command-specific flags.
@@ -1013,10 +1015,10 @@ pub fn print_config_help(deps: &mut Deps) {
         "{} {} — Show config / init / path\n\n\
 {}\n\
   {} {}                    Show effective config and file path\n\
-  {} {} {}           Create template config file\n\
-  {} {} {}           Print config file path\n\
-  {} {} {}  Store passphrase in OS keychain\n\
-  {} {} {} Remove passphrase from OS keychain\n\n\
+  {} {} {}               Create template config file\n\
+  {} {} {}               Print config file path\n\
+  {} {} {}     Store passphrase in OS keychain\n\
+  {} {} {}  Remove passphrase from OS keychain\n\n\
 {}\n\
   {}          Overwrite existing config file (for init)\n\
   {}       Show help\n\n\
