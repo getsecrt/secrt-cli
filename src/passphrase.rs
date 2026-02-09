@@ -98,7 +98,7 @@ pub fn resolve_passphrase_for_create(args: &ParsedArgs, deps: &mut Deps) -> Resu
         return Err("passphrase must not be empty".into());
     }
 
-    let confirm_prompt = format!("{} ", c(LABEL, "Confirm passphrase:"));
+    let confirm_prompt = format!("{} ", c(LABEL, "   Confirm:"));
     let p2 = (deps.read_pass)(&confirm_prompt, &mut deps.stderr)
         .map_err(|e| format!("read passphrase confirmation: {}", e))?;
     if p1 != p2 {
