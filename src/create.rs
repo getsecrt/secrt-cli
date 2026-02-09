@@ -46,7 +46,7 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
         match envelope::parse_ttl(&pa.ttl) {
             Ok(ttl) => Some(ttl),
             Err(e) => {
-                write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), &format!("invalid TTL: {}", e));
+                write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), &e.to_string());
                 return 2;
             }
         }

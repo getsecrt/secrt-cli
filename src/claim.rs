@@ -193,7 +193,7 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
                     &mut deps.stderr,
                     pa.json,
                     is_tty,
-                    &format!("decryption failed: {}", e),
+                    &e.to_string(),
                 );
                 return 1;
             }
