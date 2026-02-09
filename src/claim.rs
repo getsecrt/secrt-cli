@@ -20,7 +20,12 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
     resolve_globals(&mut pa, deps);
 
     if pa.args.is_empty() {
-        write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), "share URL is required");
+        write_error(
+            &mut deps.stderr,
+            pa.json,
+            (deps.is_tty)(),
+            "share URL is required",
+        );
         return 2;
     }
 
@@ -81,7 +86,12 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
     let resp = match client.claim(&id, &claim_token) {
         Ok(r) => r,
         Err(e) => {
-            write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), &format!("claim failed: {}", e));
+            write_error(
+                &mut deps.stderr,
+                pa.json,
+                (deps.is_tty)(),
+                &format!("claim failed: {}", e),
+            );
             return 1;
         }
     };
@@ -89,122 +99,229 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
     let is_tty = (deps.is_tty)();
     let needs_pass = envelope::requires_passphrase(&resp.envelope);
 
-    // Resolve passphrase from flags/env/file/config
-    let mut passphrase = match resolve_passphrase(&pa, deps) {
-        Ok(p) => p,
-        Err(e) => {
-            write_error(&mut deps.stderr, pa.json, is_tty, &e);
+    // Determine if an explicit passphrase flag was set
+    let explicit_flag =
+        pa.passphrase_prompt || !pa.passphrase_env.is_empty() || !pa.passphrase_file.is_empty();
+
+    // --- Phase A: Explicit flag set → use only that passphrase ---
+    if explicit_flag {
+        let mut passphrase = match resolve_passphrase(&pa, deps) {
+            Ok(p) => p,
+            Err(e) => {
+                write_error(&mut deps.stderr, pa.json, is_tty, &e);
+                return 1;
+            }
+        };
+
+        let can_retry = pa.passphrase_prompt && is_tty && needs_pass;
+        let plaintext = loop {
+            match envelope::open(OpenParams {
+                envelope: resp.envelope.clone(),
+                url_key: url_key.clone(),
+                passphrase: passphrase.clone(),
+            }) {
+                Ok(p) => break p,
+                Err(EnvelopeError::DecryptionFailed) if can_retry => {
+                    let c = color_func(is_tty);
+                    let _ = writeln!(deps.stderr, "{}", c(WARN, "Wrong passphrase, try again."));
+                    let prompt_c = color_func(true);
+                    let prompt = format!("{} ", prompt_c(LABEL, "Passphrase:"));
+                    match (deps.read_pass)(&prompt, &mut deps.stderr) {
+                        Ok(p) if !p.is_empty() => passphrase = p,
+                        Ok(_) => {
+                            write_error(
+                                &mut deps.stderr,
+                                pa.json,
+                                is_tty,
+                                "passphrase must not be empty",
+                            );
+                            return 1;
+                        }
+                        Err(e) => {
+                            write_error(
+                                &mut deps.stderr,
+                                pa.json,
+                                is_tty,
+                                &format!("read passphrase: {}", e),
+                            );
+                            return 1;
+                        }
+                    }
+                }
+                Err(e) => {
+                    write_error(&mut deps.stderr, pa.json, is_tty, &e.to_string());
+                    return 1;
+                }
+            }
+        };
+
+        return output_plaintext(&plaintext, &pa, deps, &resp.expires_at);
+    }
+
+    // --- Phase B: Try configured passphrases (default + decryption list) ---
+    {
+        // Build candidate list: default passphrase first, then decryption_passphrases, deduped
+        let mut candidates: Vec<String> = Vec::new();
+        if !pa.passphrase_default.is_empty() {
+            candidates.push(pa.passphrase_default.clone());
+        }
+        for p in &pa.decryption_passphrases {
+            if !p.is_empty() && !candidates.contains(p) {
+                candidates.push(p.clone());
+            }
+        }
+
+        // If envelope doesn't need a passphrase, try empty passphrase (no-passphrase path)
+        if !needs_pass {
+            match envelope::open(OpenParams {
+                envelope: resp.envelope.clone(),
+                url_key: url_key.clone(),
+                passphrase: String::new(),
+            }) {
+                Ok(plaintext) => return output_plaintext(&plaintext, &pa, deps, &resp.expires_at),
+                Err(EnvelopeError::DecryptionFailed) => {
+                    // Fall through to candidates or prompt
+                }
+                Err(e) => {
+                    write_error(&mut deps.stderr, pa.json, is_tty, &e.to_string());
+                    return 1;
+                }
+            }
+        }
+
+        // Try each candidate
+        for candidate in &candidates {
+            match envelope::open(OpenParams {
+                envelope: resp.envelope.clone(),
+                url_key: url_key.clone(),
+                passphrase: candidate.clone(),
+            }) {
+                Ok(plaintext) => return output_plaintext(&plaintext, &pa, deps, &resp.expires_at),
+                Err(EnvelopeError::DecryptionFailed) => continue,
+                Err(e) => {
+                    write_error(&mut deps.stderr, pa.json, is_tty, &e.to_string());
+                    return 1;
+                }
+            }
+        }
+
+        // All candidates failed (or no candidates existed)
+        let tried = candidates.len();
+
+        // --- Phase C: Fallback to interactive prompt or error ---
+        if !needs_pass && tried == 0 {
+            // No passphrase needed and decryption failed with empty passphrase — this is
+            // a genuine decryption error (wrong URL key), not a passphrase issue
+            write_error(&mut deps.stderr, pa.json, is_tty, "decryption failed");
             return 1;
         }
-    };
 
-    // Track whether passphrase came from interactive prompt (for retry logic)
-    let mut from_prompt = pa.passphrase_prompt;
-
-    // Auto-prompt if envelope needs passphrase but none was provided
-    if needs_pass && passphrase.is_empty() {
         if !is_tty {
-            write_error(
-                &mut deps.stderr,
-                pa.json,
-                false,
-                "this secret is passphrase-protected; use -p, --passphrase-env, or --passphrase-file",
-            );
+            if tried > 0 {
+                write_error(
+                    &mut deps.stderr,
+                    pa.json,
+                    false,
+                    &format!(
+                        "this secret is passphrase-protected; tried {} configured passphrase(s) \
+                         but none matched. Use -p, --passphrase-env, or --passphrase-file",
+                        tried,
+                    ),
+                );
+            } else {
+                write_error(
+                    &mut deps.stderr,
+                    pa.json,
+                    false,
+                    "this secret is passphrase-protected; use -p, --passphrase-env, or --passphrase-file",
+                );
+            }
             return 1;
         }
-        // Show notice on TTY
+
+        // TTY: show notice and prompt interactively
         if !pa.silent {
             let c = color_func(true);
-            let _ = writeln!(
-                deps.stderr,
-                "{} {}",
-                c(WARN, "\u{26b7}"),
-                c(DIM, "This secret is passphrase-protected")
-            );
+            if tried > 0 {
+                let _ = writeln!(
+                    deps.stderr,
+                    "{} {}",
+                    c(WARN, "\u{26b7}"),
+                    c(
+                        DIM,
+                        &format!(
+                        "Passphrase-protected \u{2014} {} configured passphrase(s) didn't match",
+                        tried,
+                    )
+                    )
+                );
+            } else {
+                let _ = writeln!(
+                    deps.stderr,
+                    "{} {}",
+                    c(WARN, "\u{26b7}"),
+                    c(DIM, "This secret is passphrase-protected")
+                );
+            }
         }
-        // Prompt for passphrase
-        let c = color_func(true);
-        let prompt = format!("{} ", c(LABEL, "Passphrase:"));
-        match (deps.read_pass)(&prompt, &mut deps.stderr) {
-            Ok(p) if !p.is_empty() => {
-                passphrase = p;
-                from_prompt = true;
-            }
-            Ok(_) => {
-                write_error(
-                    &mut deps.stderr,
-                    pa.json,
-                    is_tty,
-                    "passphrase must not be empty",
-                );
-                return 1;
-            }
-            Err(e) => {
-                write_error(
-                    &mut deps.stderr,
-                    pa.json,
-                    is_tty,
-                    &format!("read passphrase: {}", e),
-                );
-                return 1;
+
+        // Interactive retry loop
+        loop {
+            let c = color_func(true);
+            let prompt = format!("{} ", c(LABEL, "Passphrase:"));
+            let passphrase = match (deps.read_pass)(&prompt, &mut deps.stderr) {
+                Ok(p) if !p.is_empty() => p,
+                Ok(_) => {
+                    write_error(
+                        &mut deps.stderr,
+                        pa.json,
+                        is_tty,
+                        "passphrase must not be empty",
+                    );
+                    return 1;
+                }
+                Err(e) => {
+                    write_error(
+                        &mut deps.stderr,
+                        pa.json,
+                        is_tty,
+                        &format!("read passphrase: {}", e),
+                    );
+                    return 1;
+                }
+            };
+
+            match envelope::open(OpenParams {
+                envelope: resp.envelope.clone(),
+                url_key: url_key.clone(),
+                passphrase,
+            }) {
+                Ok(plaintext) => return output_plaintext(&plaintext, &pa, deps, &resp.expires_at),
+                Err(EnvelopeError::DecryptionFailed) => {
+                    let c = color_func(is_tty);
+                    let _ = writeln!(deps.stderr, "{}", c(WARN, "Wrong passphrase, try again."));
+                    continue;
+                }
+                Err(e) => {
+                    write_error(&mut deps.stderr, pa.json, is_tty, &e.to_string());
+                    return 1;
+                }
             }
         }
     }
+}
 
-    // Decrypt with retry support for interactive prompts.
-    // The envelope is already claimed (in memory), so retries are free.
-    let can_retry = from_prompt && is_tty && needs_pass;
-    let plaintext = loop {
-        match envelope::open(OpenParams {
-            envelope: resp.envelope.clone(),
-            url_key: url_key.clone(),
-            passphrase: passphrase.clone(),
-        }) {
-            Ok(p) => break p,
-            Err(EnvelopeError::DecryptionFailed) if can_retry => {
-                let c = color_func(is_tty);
-                let _ = writeln!(deps.stderr, "{}", c(WARN, "Wrong passphrase, try again."));
-                let prompt_c = color_func(true);
-                let prompt = format!("{} ", prompt_c(LABEL, "Passphrase:"));
-                match (deps.read_pass)(&prompt, &mut deps.stderr) {
-                    Ok(p) if !p.is_empty() => passphrase = p,
-                    Ok(_) => {
-                        write_error(
-                            &mut deps.stderr,
-                            pa.json,
-                            is_tty,
-                            "passphrase must not be empty",
-                        );
-                        return 1;
-                    }
-                    Err(e) => {
-                        write_error(
-                            &mut deps.stderr,
-                            pa.json,
-                            is_tty,
-                            &format!("read passphrase: {}", e),
-                        );
-                        return 1;
-                    }
-                }
-            }
-            Err(e) => {
-                write_error(
-                    &mut deps.stderr,
-                    pa.json,
-                    is_tty,
-                    &e.to_string(),
-                );
-                return 1;
-            }
-        }
-    };
-
-    // Output
+/// Output decrypted plaintext to stdout in the appropriate format.
+fn output_plaintext(
+    plaintext: &[u8],
+    pa: &crate::cli::ParsedArgs,
+    deps: &mut Deps,
+    expires_at: &str,
+) -> i32 {
     if pa.json {
         let out = serde_json::json!({
-            "plaintext": String::from_utf8_lossy(&plaintext),
-            "expires_at": resp.expires_at,
+            "plaintext": String::from_utf8_lossy(plaintext),
+            "expires_at": expires_at,
         });
         let _ = writeln!(deps.stdout, "{}", serde_json::to_string(&out).unwrap());
     } else {
@@ -212,7 +329,7 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
             let c = color_func(true);
             let _ = writeln!(deps.stderr, "{}", c(LABEL, "Secret:"));
         }
-        let _ = deps.stdout.write_all(&plaintext);
+        let _ = deps.stdout.write_all(plaintext);
         // Add a trailing newline for clean terminal display, but only when
         // stdout is a TTY and the secret doesn't already end with one.
         // Piped output remains byte-exact to preserve secret integrity.
@@ -220,6 +337,5 @@ pub fn run_claim(args: &[String], deps: &mut Deps) -> i32 {
             let _ = writeln!(deps.stdout);
         }
     }
-
     0
 }
