@@ -213,9 +213,8 @@ fn e2e_burn() {
     let secret_id = json["id"].as_str().unwrap().to_string();
 
     // Burn it
-    let (mut deps2, _stdout2, stderr2) = TestDepsBuilder::new()
-        .env("SECRET_BASE_URL", &url)
-        .build();
+    let (mut deps2, _stdout2, stderr2) =
+        TestDepsBuilder::new().env("SECRET_BASE_URL", &url).build();
     let code2 = cli::run(
         &args(&["secrt", "burn", &secret_id, "--api-key", &key]),
         &mut deps2,

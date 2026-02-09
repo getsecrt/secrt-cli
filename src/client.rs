@@ -66,10 +66,7 @@ impl ApiClient {
         let msg = err.to_string();
         if msg.contains("tls") || msg.contains("certificate") || msg.contains("ssl") {
             format!("TLS error connecting to {}: {}", self.base_url, msg)
-        } else if msg.contains("dns")
-            || msg.contains("resolve")
-            || msg.contains("No such host")
-        {
+        } else if msg.contains("dns") || msg.contains("resolve") || msg.contains("No such host") {
             format!("cannot resolve host {}: {}", self.base_url, msg)
         } else if msg.contains("timed out") || msg.contains("timeout") {
             format!("connection to {} timed out", self.base_url)

@@ -1,14 +1,14 @@
 // Semantic color tokens
-pub const CMD: &str = "36";      // cyan — command names
-pub const OPT: &str = "33";      // yellow — flags/options
-pub const ARG: &str = "2";       // dim — argument placeholders
-pub const HEADING: &str = "1";   // bold — section headings
-pub const SUCCESS: &str = "32";  // green — success indicators
-pub const ERROR: &str = "31";    // red — error prefix
-pub const URL: &str = "1;36";    // bold cyan — share URLs
-pub const LABEL: &str = "37";    // white — prompt labels (Secret:, Passphrase:)
-pub const DIM: &str = "2";       // dim — status messages, hints, secondary text
-pub const WARN: &str = "33";     // yellow — warnings, in-progress
+pub const CMD: &str = "36"; // cyan — command names
+pub const OPT: &str = "33"; // yellow — flags/options
+pub const ARG: &str = "2"; // dim — argument placeholders
+pub const HEADING: &str = "1"; // bold — section headings
+pub const SUCCESS: &str = "32"; // green — success indicators
+pub const ERROR: &str = "31"; // red — error prefix
+pub const URL: &str = "1;36"; // bold cyan — share URLs
+pub const LABEL: &str = "37"; // white — prompt labels (Secret:, Passphrase:)
+pub const DIM: &str = "2"; // dim — status messages, hints, secondary text
+pub const WARN: &str = "33"; // yellow — warnings, in-progress
 
 pub type ColorFn = Box<dyn Fn(&str, &str) -> String>;
 

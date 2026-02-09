@@ -281,10 +281,7 @@ fn create_multi_line_preserves_exact_bytes() {
 
 #[test]
 fn create_multi_line_empty_input() {
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .stdin(b"")
-        .is_tty(true)
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().stdin(b"").is_tty(true).build();
     let code = cli::run(&args(&["secrt", "create", "--multi-line"]), &mut deps);
     assert_eq!(code, 2, "stderr: {}", stderr.to_string());
     assert!(
@@ -328,7 +325,13 @@ fn create_trim_with_file_flag() {
         .mock_create(Ok(mock_create_response()))
         .build();
     let code = cli::run(
-        &args(&["secrt", "create", "--file", path.to_str().unwrap(), "--trim"]),
+        &args(&[
+            "secrt",
+            "create",
+            "--file",
+            path.to_str().unwrap(),
+            "--trim",
+        ]),
         &mut deps,
     );
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
@@ -338,9 +341,7 @@ fn create_trim_with_file_flag() {
 
 #[test]
 fn create_trim_makes_empty_errors() {
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .stdin(b"  \n  \r\n  ")
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().stdin(b"  \n  \r\n  ").build();
     let code = cli::run(&args(&["secrt", "create", "--trim"]), &mut deps);
     assert_eq!(code, 2, "stderr: {}", stderr.to_string());
     assert!(
@@ -482,7 +483,9 @@ fn create_rate_limit_error_shows_friendly_message() {
 fn create_unauthorized_error_shows_api_key_hint() {
     let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
         .stdin(b"my secret")
-        .mock_create(Err("server error (401): unauthorized; check your API key".into()))
+        .mock_create(Err(
+            "server error (401): unauthorized; check your API key".into()
+        ))
         .build();
     let code = cli::run(&args(&["secrt", "create"]), &mut deps);
     assert_eq!(code, 1);
@@ -609,19 +612,12 @@ fn create_tty_status_indicator_success() {
         "should show success message: {}",
         err
     );
-    assert!(
-        err.contains("Expires"),
-        "should show expiry info: {}",
-        err
-    );
+    assert!(err.contains("Expires"), "should show expiry info: {}", err);
 }
 
 #[test]
 fn create_show_empty_input_errors() {
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .stdin(b"\n")
-        .is_tty(true)
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().stdin(b"\n").is_tty(true).build();
     let code = cli::run(&args(&["secrt", "create", "--show"]), &mut deps);
     assert_eq!(code, 2, "stderr: {}", stderr.to_string());
     assert!(
@@ -640,13 +636,7 @@ fn create_passphrase_conflicting_flags() {
         .mock_create(Ok(mock_create_response()))
         .build();
     let code = cli::run(
-        &args(&[
-            "secrt",
-            "create",
-            "-p",
-            "--passphrase-env",
-            "MY_PASS",
-        ]),
+        &args(&["secrt", "create", "-p", "--passphrase-env", "MY_PASS"]),
         &mut deps,
     );
     assert_eq!(code, 2);
@@ -690,9 +680,5 @@ fn create_success_tty_stdout_shows_link() {
     let code = cli::run(&args(&["secrt", "create"]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     let out = stdout.to_string();
-    assert!(
-        out.contains("#v1."),
-        "should show share link: {}",
-        out
-    );
+    assert!(out.contains("#v1."), "should show share link: {}", out);
 }

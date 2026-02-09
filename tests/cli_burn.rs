@@ -115,9 +115,7 @@ fn burn_env_api_key() {
 
 #[test]
 fn burn_success_plain() {
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .mock_burn(Ok(()))
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().mock_burn(Ok(())).build();
     let code = cli::run(
         &args(&["secrt", "burn", "test-id-123", "--api-key", "sk_test"]),
         &mut deps,
@@ -132,11 +130,16 @@ fn burn_success_plain() {
 
 #[test]
 fn burn_success_json() {
-    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
-        .mock_burn(Ok(()))
-        .build();
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new().mock_burn(Ok(())).build();
     let code = cli::run(
-        &args(&["secrt", "burn", "test-id-123", "--api-key", "sk_test", "--json"]),
+        &args(&[
+            "secrt",
+            "burn",
+            "test-id-123",
+            "--api-key",
+            "sk_test",
+            "--json",
+        ]),
         &mut deps,
     );
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
@@ -148,9 +151,7 @@ fn burn_success_json() {
 #[test]
 fn burn_success_share_url() {
     let url = make_share_url("https://secrt.ca", "burn-test");
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .mock_burn(Ok(()))
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().mock_burn(Ok(())).build();
     let code = cli::run(
         &args(&["secrt", "burn", &url, "--api-key", "sk_test"]),
         &mut deps,
@@ -182,11 +183,16 @@ fn burn_api_error() {
 
 #[test]
 fn burn_silent_suppresses_message() {
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .mock_burn(Ok(()))
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().mock_burn(Ok(())).build();
     let code = cli::run(
-        &args(&["secrt", "burn", "test-id-123", "--api-key", "sk_test", "--silent"]),
+        &args(&[
+            "secrt",
+            "burn",
+            "test-id-123",
+            "--api-key",
+            "sk_test",
+            "--silent",
+        ]),
         &mut deps,
     );
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());

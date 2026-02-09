@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 
 use crate::cli::{parse_flags, print_create_help, resolve_globals, CliError, Deps, ParsedArgs};
 use crate::client::CreateRequest;
-use crate::color::{color_func, SUCCESS, URL, DIM, LABEL, WARN};
+use crate::color::{color_func, DIM, LABEL, SUCCESS, URL, WARN};
 use crate::envelope::{self, format_share_link, SealParams};
 use crate::passphrase::{resolve_passphrase_for_create, write_error};
 
@@ -35,7 +35,12 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
         let trimmed = String::from_utf8_lossy(&plaintext);
         let trimmed = trimmed.trim();
         if trimmed.is_empty() {
-            write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), "input is empty after trimming");
+            write_error(
+                &mut deps.stderr,
+                pa.json,
+                (deps.is_tty)(),
+                "input is empty after trimming",
+            );
             return 2;
         }
         plaintext = trimmed.as_bytes().to_vec();
@@ -89,7 +94,11 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
     let is_tty = (deps.is_tty)();
     if is_tty && !pa.silent {
         let c = color_func(true);
-        let _ = write!(deps.stderr, "{} Encrypting and uploading...", c(WARN, "\u{25CB}"));
+        let _ = write!(
+            deps.stderr,
+            "{} Encrypting and uploading...",
+            c(WARN, "\u{25CB}")
+        );
         let _ = deps.stderr.flush();
     }
     let client = (deps.make_api)(&pa.base_url, &pa.api_key);
@@ -148,7 +157,7 @@ fn format_expires(iso: &str) -> String {
     // Input: "2026-02-10T09:30:00Z" or similar
     // Output: "Expires 2026-02-10 09:30"
     if iso.len() >= 16 {
-        let date = &iso[0..10];  // YYYY-MM-DD
+        let date = &iso[0..10]; // YYYY-MM-DD
         let time = &iso[11..16]; // HH:MM
         format!("Expires {} {}", date, time)
     } else {
@@ -195,7 +204,11 @@ fn read_plaintext(pa: &ParsedArgs, deps: &mut Deps) -> Result<Vec<u8>, String> {
 
         if show_input {
             if !pa.silent {
-                let _ = writeln!(deps.stderr, "{}", c(WARN, "Enter your secret below (input will be shown)"));
+                let _ = writeln!(
+                    deps.stderr,
+                    "{}",
+                    c(WARN, "Enter your secret below (input will be shown)")
+                );
             }
             let prompt = if pa.silent { "" } else { "Secret: " };
             if !pa.silent {
@@ -218,7 +231,11 @@ fn read_plaintext(pa: &ParsedArgs, deps: &mut Deps) -> Result<Vec<u8>, String> {
             return Ok(line.into_bytes());
         } else {
             if !pa.silent {
-                let _ = writeln!(deps.stderr, "{}", c(DIM, "Enter your secret below (input is hidden)"));
+                let _ = writeln!(
+                    deps.stderr,
+                    "{}",
+                    c(DIM, "Enter your secret below (input is hidden)")
+                );
             }
             let prompt = if pa.silent {
                 String::new()
@@ -237,7 +254,11 @@ fn read_plaintext(pa: &ParsedArgs, deps: &mut Deps) -> Result<Vec<u8>, String> {
     if (deps.is_tty)() && pa.multi_line {
         let c = color_func(true);
         if !pa.silent {
-            let _ = writeln!(deps.stderr, "{}", c(DIM, "Enter secret (Ctrl+D on empty line to finish):"));
+            let _ = writeln!(
+                deps.stderr,
+                "{}",
+                c(DIM, "Enter secret (Ctrl+D on empty line to finish):")
+            );
         }
     }
 

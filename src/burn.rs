@@ -30,7 +30,12 @@ pub fn run_burn(args: &[String], deps: &mut Deps) -> i32 {
     }
 
     if pa.api_key.is_empty() {
-        write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), "--api-key is required for burn");
+        write_error(
+            &mut deps.stderr,
+            pa.json,
+            (deps.is_tty)(),
+            "--api-key is required for burn",
+        );
         return 2;
     }
 
@@ -57,7 +62,12 @@ pub fn run_burn(args: &[String], deps: &mut Deps) -> i32 {
                 }
             }
             Err(e) => {
-                write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), &format!("invalid URL: {}", e));
+                write_error(
+                    &mut deps.stderr,
+                    pa.json,
+                    (deps.is_tty)(),
+                    &format!("invalid URL: {}", e),
+                );
                 return 2;
             }
         }
@@ -66,7 +76,12 @@ pub fn run_burn(args: &[String], deps: &mut Deps) -> i32 {
     let client = (deps.make_api)(&base_url, &pa.api_key);
 
     if let Err(e) = client.burn(&secret_id) {
-        write_error(&mut deps.stderr, pa.json, (deps.is_tty)(), &format!("burn failed: {}", e));
+        write_error(
+            &mut deps.stderr,
+            pa.json,
+            (deps.is_tty)(),
+            &format!("burn failed: {}", e),
+        );
         return 1;
     }
 
