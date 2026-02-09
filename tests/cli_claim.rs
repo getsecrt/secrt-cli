@@ -282,3 +282,216 @@ fn claim_silent_suppresses_label() {
         stderr.to_string()
     );
 }
+
+// --- Passphrase auto-prompt tests ---
+
+#[test]
+fn claim_passphrase_auto_prompt_on_tty() {
+    let plaintext = b"auto prompt secret";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "mypass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // TTY + no passphrase flags → should auto-prompt
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["mypass"])
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "auto prompt secret");
+    let err = stderr.to_string();
+    assert!(
+        err.contains("passphrase-protected"),
+        "should show passphrase notice: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_auto_prompt_shows_key_symbol() {
+    let plaintext = b"key symbol test";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "pass123");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["pass123"])
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    let err = stderr.to_string();
+    assert!(
+        err.contains("\u{26b7}"),
+        "should show key symbol: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_auto_prompt_silent_hides_notice() {
+    let plaintext = b"silent passphrase";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "mypass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["mypass"])
+        .build();
+    let code = cli::run(
+        &args(&["secrt", "claim", &share_link, "--silent"]),
+        &mut deps,
+    );
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "silent passphrase");
+    assert!(
+        !stderr.to_string().contains("passphrase-protected"),
+        "silent should hide notice: {}",
+        stderr.to_string()
+    );
+}
+
+#[test]
+fn claim_passphrase_non_tty_errors_with_hint() {
+    let plaintext = b"non-tty secret";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "mypass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // Non-TTY + no passphrase flags → should error with helpful message
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 1);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("passphrase-protected"),
+        "should mention passphrase-protected: {}",
+        err
+    );
+    assert!(
+        err.contains("-p"),
+        "should hint at -p flag: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_retry_on_wrong_passphrase() {
+    let plaintext = b"retry secret";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // First attempt wrong, second attempt correct
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["wrong", "correct"])
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "retry secret");
+    let err = stderr.to_string();
+    assert!(
+        err.contains("Wrong passphrase"),
+        "should show retry message: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_retry_many_then_succeed() {
+    let plaintext = b"many retries";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // 4 wrong attempts then correct — no limit on retries
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["wrong1", "wrong2", "wrong3", "wrong4", "correct"])
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "many retries");
+    let err = stderr.to_string();
+    // Should have shown "Wrong passphrase" 4 times
+    assert_eq!(
+        err.matches("Wrong passphrase").count(),
+        4,
+        "should show 4 retry messages: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_no_retry_with_env_flag() {
+    let plaintext = b"env flag no retry";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // Wrong passphrase via --passphrase-env → no retry even on TTY
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .env("BAD_PASS", "wrong")
+        .build();
+    let code = cli::run(
+        &args(&[
+            "secrt",
+            "claim",
+            &share_link,
+            "--passphrase-env",
+            "BAD_PASS",
+        ]),
+        &mut deps,
+    );
+    assert_eq!(code, 1);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("decryption failed"),
+        "should fail without retry: {}",
+        err
+    );
+    assert!(
+        !err.contains("Wrong passphrase"),
+        "should NOT show retry message: {}",
+        err
+    );
+}
+
+#[test]
+fn claim_passphrase_prompt_flag_allows_retry() {
+    let plaintext = b"prompt flag retry";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // Wrong first via -p, then correct on retry
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["wrong", "correct"])
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link, "-p"]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "prompt flag retry");
+}

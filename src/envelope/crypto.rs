@@ -172,6 +172,15 @@ pub fn seal(p: SealParams<'_>) -> Result<SealResult, EnvelopeError> {
     })
 }
 
+/// Check if an envelope requires a passphrase by inspecting the KDF name.
+pub fn requires_passphrase(envelope: &serde_json::Value) -> bool {
+    envelope
+        .get("kdf")
+        .and_then(|kdf| kdf.get("name"))
+        .and_then(|n| n.as_str())
+        .is_some_and(|name| name != "none")
+}
+
 /// Decrypt an envelope, returning plaintext.
 pub fn open(p: OpenParams) -> Result<Vec<u8>, EnvelopeError> {
     if p.url_key.len() != URL_KEY_LEN {
@@ -807,5 +816,44 @@ mod tests {
         })
         .unwrap();
         assert!(result.envelope.get("hint").is_none());
+    }
+
+    #[test]
+    fn requires_passphrase_none() {
+        let env = serde_json::json!({"kdf": {"name": "none"}});
+        assert!(!requires_passphrase(&env));
+    }
+
+    #[test]
+    fn requires_passphrase_pbkdf2() {
+        let env = serde_json::json!({"kdf": {"name": "PBKDF2-SHA256"}});
+        assert!(requires_passphrase(&env));
+    }
+
+    #[test]
+    fn requires_passphrase_missing_kdf() {
+        let env = serde_json::json!({});
+        assert!(!requires_passphrase(&env));
+    }
+
+    #[test]
+    fn requires_passphrase_sealed_envelope() {
+        // Test with a real sealed envelope (no passphrase)
+        let (result, _) = seal_valid();
+        assert!(!requires_passphrase(&result.envelope));
+    }
+
+    #[test]
+    fn requires_passphrase_sealed_with_passphrase() {
+        // Test with a real sealed envelope (with passphrase)
+        let result = seal(SealParams {
+            plaintext: b"secret".to_vec(),
+            passphrase: "test".to_string(),
+            rand_bytes: &real_rand,
+            hint: None,
+            iterations: 300_000,
+        })
+        .unwrap();
+        assert!(requires_passphrase(&result.envelope));
     }
 }
