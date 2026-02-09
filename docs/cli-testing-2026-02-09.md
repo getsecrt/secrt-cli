@@ -14,17 +14,15 @@ Overall the CLI is well-designed and follows good conventions. Most operations w
 
 ---
 
-## 🐛 Bugs (2 remaining)
+## 🐛 Bugs (all fixed! 🎉)
 
-### 1. JSON claim output missing plaintext
-**Severity:** Medium  
-**Steps:** `./secrt claim <url> --json`  
-**Expected:** JSON with plaintext and metadata  
-**Actual:** Only returns `{"expires_at":"..."}` — no plaintext!
+### 1. ~~JSON claim output missing plaintext~~ → FIXED in 8fc99d8
+**Status:** ✅ Resolved
+
+JSON claim output now includes `plaintext` field using UTF-8 lossy conversion.
 ```json
-{"expires_at":"2026-02-09T08:51:38.772553Z"}
+{"expires_at":"...","plaintext":"the secret"}
 ```
-**Impact:** Can't use JSON mode for scripted claim operations.
 
 ### 2. ~~Wrong passphrase burns the secret~~ → FIXED in b5fbf3b
 **Status:** ✅ Resolved for TTY users
@@ -37,21 +35,21 @@ The CLI now auto-prompts for passphrase on TTY when claiming passphrase-protecte
 
 Great UX improvement! 👍
 
-### 3. Redundant error messages
-**Severity:** Low (polish)  
-**Examples:**
-- `error: decryption failed: decryption failed` (duplicate)
-- `error: invalid TTL: invalid TTL: "invalid"` (duplicate)
+### 3. ~~Redundant error messages~~ → FIXED in 5d52ea6
+**Status:** ✅ Resolved
+
+Error types now use their Display impl directly without extra wrapping:
+- `error: decryption failed`
+- `error: invalid TTL: "invalid"`
 
 ---
 
 ## 🎨 UX/Polish Issues
 
-### 4. `config --help` doesn't work
-**Steps:** `./secrt config --help`  
-**Actual:** `error: unknown config subcommand "--help" (try: init, path)`  
-**Expected:** Should show help for config subcommand  
-**Suggestion:** Support `--help` for all subcommands, or at least don't treat it as an unknown subcommand.
+### 4. ~~`config --help` doesn't work~~ → FIXED in f7e9425
+**Status:** ✅ Resolved
+
+`secrt config --help` and `secrt help config` now both show config help.
 
 ### 5. Version shows "dev" in dev builds
 **Steps:** `./secrt version` or `./secrt -v`  

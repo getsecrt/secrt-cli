@@ -2,15 +2,15 @@
 
 ## Current State
 
-**251 tests passing, 6 E2E tests ignored (gated by env var)**
+**257 tests passing, 6 E2E tests ignored (gated by env var)**
 
 | Suite | Tests | Description |
 |-------|------:|-------------|
 | Unit (secrt) | 134 | Flag parsing, globals, crypto, URL, TTL, config, passphrase |
 | cli_burn | 15 | Burn command integration tests |
-| cli_claim | 28 | Claim command integration tests |
+| cli_claim | 30 | Claim command integration tests |
 | cli_create | 41 | Create command integration tests |
-| cli_dispatch | 25 | Top-level dispatch, help, version, completion |
+| cli_dispatch | 27 | Top-level dispatch, help, version, completion |
 | envelope_vectors | 6 | Spec crypto test vectors |
 | ttl_vectors | 2 | Spec TTL test vectors (17 valid + 17 invalid) |
 | E2E (ignored) | 6 | Full roundtrip against live server |
@@ -39,7 +39,7 @@ pub trait SecretApi {
 - **Passphrase**: All three sources (env/file/prompt), config default fallback, mutual exclusivity (in both `resolve_passphrase` and `resolve_passphrase_for_create`), empty values, file trimming, create confirmation match/mismatch, `write_error()` in JSON and plain modes.
 - **CLI dispatch**: All commands, version/help flags, completion scripts (bash/zsh/fish), unknown command/shell errors, config subcommands.
 - **Command handlers (create)**: Unknown flags, input validation (empty stdin/file, multiple sources, invalid TTL), passphrase via env, conflicting passphrase flags, success paths (plain + JSON + TTL + TTY stdout), API error handling (TTY + silent), `--show`/`--hidden`/`--silent`/`--trim` modes.
-- **Command handlers (claim)**: Unknown flags, missing URL, invalid URL, base-URL override, success paths (plain + JSON + passphrase), decryption error, API error handling, auto-prompt on TTY (success + empty input + read error), non-TTY passphrase error, passphrase retry (single + many attempts), no retry with env/file flags, retry with explicit `-p` flag, conflicting flags, JSON non-TTY error, `--silent` hides notice.
+- **Command handlers (claim)**: Unknown flags, missing URL, invalid URL, base-URL override, success paths (plain + JSON + passphrase), JSON with unicode/emoji, JSON with binary data (lossy UTF-8), decryption error, API error handling, auto-prompt on TTY (success + empty input + read error), non-TTY passphrase error, passphrase retry (single + many attempts), no retry with env/file flags, retry with explicit `-p` flag, conflicting flags, JSON non-TTY error, `--silent` hides notice.
 - **Command handlers (burn)**: Unknown flags, missing ID, missing API key, bare ID, share URL, malformed URL, success paths (plain + JSON + via share URL + TTY checkmark), API error handling, env API key, `--silent` suppresses message.
 
 ## What's Not Covered
