@@ -14,9 +14,19 @@ pub struct Config {
 }
 
 /// Returns the config file path: $XDG_CONFIG_HOME/secrt/config.toml
-/// or ~/.config/secrt/config.toml
+/// or ~/.config/secrt/config.toml (preferred over ~/Library/Application Support
+/// on macOS since CLI tools conventionally use ~/.config/).
 pub fn config_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("secrt").join("config.toml"))
+    config_path_with(&|key| std::env::var(key).ok())
+}
+
+/// config_path variant that uses a custom getenv (for testing/injection).
+pub fn config_path_with(getenv: &dyn Fn(&str) -> Option<String>) -> Option<PathBuf> {
+    let config_dir = getenv("XDG_CONFIG_HOME")
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".config")));
+    config_dir.map(|d| d.join("secrt").join("config.toml"))
 }
 
 /// Load config from the standard path. Returns default Config if file
@@ -90,6 +100,56 @@ fn load_config_from_path(path: &PathBuf, stderr: &mut dyn Write) -> Config {
             Config::default()
         }
     }
+}
+
+/// Template content for a new config file.
+pub const CONFIG_TEMPLATE: &str = "\
+# secrt configuration
+# https://secrt.ca/docs/config
+
+# Server URL (default: https://secrt.ca)
+# base_url = \"https://secrt.ca\"
+
+# API key for authenticated access
+# api_key = \"sk_...\"
+
+# Default TTL for secrets (e.g., 5m, 2h, 1d)
+# default_ttl = \"24h\"
+
+# Show input while typing (default: false)
+# show_input = false
+";
+
+/// Create a config file from the template. Returns Ok(path) on success.
+/// If the file already exists and `force` is false, returns an error message.
+pub fn init_config(force: bool) -> Result<PathBuf, String> {
+    init_config_at(config_path(), force)
+}
+
+/// Inner init that takes an explicit path (for testing).
+pub fn init_config_at(config_path: Option<PathBuf>, force: bool) -> Result<PathBuf, String> {
+    let path = config_path.ok_or("could not determine config directory")?;
+    if path.exists() && !force {
+        return Err(format!(
+            "Config file already exists at: {}\nUse --force to overwrite.",
+            path.display()
+        ));
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("failed to create {}: {}", parent.display(), e))?;
+    }
+    fs::write(&path, CONFIG_TEMPLATE)
+        .map_err(|e| format!("failed to write {}: {}", path.display(), e))?;
+
+    // Set permissions to 0600 on Unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
+
+    Ok(path)
 }
 
 /// Mask a secret value for display. Shows a prefix then dots.

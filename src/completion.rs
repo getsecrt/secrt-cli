@@ -20,6 +20,9 @@ pub const BASH_COMPLETION: &str = r#"_secrt() {
         burn)
             COMPREPLY=($(compgen -W "--api-key --base-url --json --silent --help" -- "${cur}"))
             ;;
+        config)
+            COMPREPLY=($(compgen -W "init path --force" -- "${cur}"))
+            ;;
         completion)
             COMPREPLY=($(compgen -W "bash zsh fish" -- "${cur}"))
             ;;
@@ -37,7 +40,7 @@ _secrt() {
         'create:Encrypt and upload a secret'
         'claim:Retrieve and decrypt a secret'
         'burn:Destroy a secret (requires API key)'
-        'config:Show effective configuration'
+        'config:Show config / init / path'
         'version:Show version'
         'help:Show help'
         'completion:Output shell completion script'
@@ -89,6 +92,11 @@ _secrt() {
                         '--silent[Suppress status output]' \
                         '--help[Show help]'
                     ;;
+                config)
+                    _arguments \
+                        '1:subcommand:(init path)' \
+                        '--force[Overwrite existing config file]'
+                    ;;
                 completion)
                     _arguments '1:shell:(bash zsh fish)'
                     ;;
@@ -104,7 +112,7 @@ pub const FISH_COMPLETION: &str = r#"complete -c secrt -f
 complete -c secrt -n '__fish_use_subcommand' -a create -d 'Encrypt and upload a secret'
 complete -c secrt -n '__fish_use_subcommand' -a claim -d 'Retrieve and decrypt a secret'
 complete -c secrt -n '__fish_use_subcommand' -a burn -d 'Destroy a secret (requires API key)'
-complete -c secrt -n '__fish_use_subcommand' -a config -d 'Show effective configuration'
+complete -c secrt -n '__fish_use_subcommand' -a config -d 'Show config / init / path'
 complete -c secrt -n '__fish_use_subcommand' -a version -d 'Show version'
 complete -c secrt -n '__fish_use_subcommand' -a help -d 'Show help'
 complete -c secrt -n '__fish_use_subcommand' -a completion -d 'Output shell completion script'
@@ -135,6 +143,9 @@ complete -c secrt -n '__fish_seen_subcommand_from burn' -l api-key -d 'API key'
 complete -c secrt -n '__fish_seen_subcommand_from burn' -l base-url -d 'Server URL'
 complete -c secrt -n '__fish_seen_subcommand_from burn' -l json -d 'Output as JSON'
 complete -c secrt -n '__fish_seen_subcommand_from burn' -l silent -d 'Suppress status output'
+
+complete -c secrt -n '__fish_seen_subcommand_from config' -a 'init path' -d 'Config subcommand'
+complete -c secrt -n '__fish_seen_subcommand_from config' -l force -d 'Overwrite existing config file'
 
 complete -c secrt -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
 "#;

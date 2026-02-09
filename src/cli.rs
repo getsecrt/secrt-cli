@@ -3,7 +3,7 @@ use std::io::{self, Read, Write};
 use crate::burn::run_burn;
 use crate::claim::run_claim;
 use crate::client::SecretApi;
-use crate::color::{color_func, CMD, OPT, ARG, HEADING, DIM};
+use crate::color::{color_func, CMD, OPT, ARG, HEADING, DIM, SUCCESS};
 use crate::completion::{BASH_COMPLETION, FISH_COMPLETION, ZSH_COMPLETION};
 use crate::create::run_create;
 
@@ -98,7 +98,7 @@ pub fn run(args: &[String], deps: &mut Deps) -> i32 {
         }
         "help" => run_help(remaining, deps),
         "completion" => run_completion(remaining, deps),
-        "config" => run_config(deps),
+        "config" => run_config(remaining, deps),
         "create" => run_create(remaining, deps),
         "claim" => run_claim(remaining, deps),
         "burn" => run_burn(remaining, deps),
@@ -277,17 +277,74 @@ pub fn resolve_globals_with_config(pa: &mut ParsedArgs, deps: &Deps, config: &cr
     }
 }
 
-// --- Config display ---
+// --- Config subcommands ---
 
-fn run_config(deps: &mut Deps) -> i32 {
+fn run_config(args: &[String], deps: &mut Deps) -> i32 {
+    if args.is_empty() {
+        return run_config_show(deps);
+    }
+    match args[0].as_str() {
+        "init" => {
+            let force = args.iter().any(|a| a == "--force");
+            run_config_init(force, deps)
+        }
+        "path" => run_config_path(deps),
+        _ => {
+            let _ = writeln!(
+                deps.stderr,
+                "error: unknown config subcommand {:?} (try: init, path)",
+                args[0]
+            );
+            2
+        }
+    }
+}
+
+fn run_config_init(force: bool, deps: &mut Deps) -> i32 {
+    let c = color_func((deps.is_tty)());
+    let path = crate::config::config_path_with(&*deps.getenv);
+    match crate::config::init_config_at(path, force) {
+        Ok(path) => {
+            let _ = writeln!(
+                deps.stderr,
+                "{} Created config file at: {}",
+                c(SUCCESS, "\u{2713}"),
+                path.display()
+            );
+            0
+        }
+        Err(e) => {
+            let _ = writeln!(deps.stderr, "{}", e);
+            1
+        }
+    }
+}
+
+fn run_config_path(deps: &mut Deps) -> i32 {
+    match crate::config::config_path_with(&*deps.getenv) {
+        Some(p) => {
+            let _ = writeln!(deps.stdout, "{}", p.display());
+            0
+        }
+        None => {
+            let _ = writeln!(deps.stderr, "error: could not determine config directory");
+            1
+        }
+    }
+}
+
+fn run_config_show(deps: &mut Deps) -> i32 {
     let c = color_func((deps.is_stdout_tty)());
     let config = crate::config::load_config(&mut deps.stderr);
 
     // Config file path
-    let config_path = crate::config::config_path()
+    let resolved_path = crate::config::config_path_with(&*deps.getenv);
+    let config_path = resolved_path
+        .as_ref()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(unknown)".into());
-    let config_exists = crate::config::config_path()
+    let config_exists = resolved_path
+        .as_ref()
         .map(|p| p.exists())
         .unwrap_or(false);
 
@@ -412,7 +469,7 @@ pub fn print_help(deps: &mut Deps) {
   {}       Encrypt and upload a secret\n\
   {}        Retrieve and decrypt a secret\n\
   {}         Destroy a secret (requires API key)\n\
-  {}       Show effective configuration\n\
+  {}       Show config / init / path\n\
   {}      Show version\n\
   {}         Show this help\n\
   {}   Output shell completion script\n\n\
@@ -427,6 +484,8 @@ pub fn print_help(deps: &mut Deps) {
   echo \"pw123\" | {} {}\n\
   {} https://secrt.ca/s/abc#v1.key\n\n\
 {}\n\
+  {} {}  Create template config file\n\
+  {}          Print config file path\n\
   Settings are loaded from {}.\n\
   Supported keys: api_key, base_url, passphrase, show_input.\n\
   Precedence: CLI flag > env var > config file > default.\n",
@@ -457,6 +516,9 @@ pub fn print_help(deps: &mut Deps) {
         c(CMD, "create"),
         c(CMD, "secrt claim"),
         c(HEADING, "CONFIG"),
+        c(CMD, "config init"),
+        c(OPT, "[--force]"),
+        c(CMD, "config path"),
         c(DIM, "~/.config/secrt/config.toml"),
     );
 }
