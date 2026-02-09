@@ -463,28 +463,19 @@ fn run_config_show(deps: &mut Deps) -> i32 {
         );
     }
 
-    // default_ttl: config/none
+    // default_ttl: config/server default
     let (ttl_display, ttl_src) = if let Some(ref ttl) = config.default_ttl {
         (ttl.clone(), "config file")
     } else {
-        ("(not set)".into(), "")
+        ("24h".into(), "server default")
     };
-    if ttl_src.is_empty() {
-        let _ = writeln!(
-            deps.stderr,
-            "  {}: {}",
-            c(OPT, "default_ttl"),
-            c(DIM, &ttl_display),
-        );
-    } else {
-        let _ = writeln!(
-            deps.stderr,
-            "  {}: {} {}",
-            c(OPT, "default_ttl"),
-            ttl_display,
-            c(DIM, &format!("({})", ttl_src)),
-        );
-    }
+    let _ = writeln!(
+        deps.stderr,
+        "  {}: {} {}",
+        c(OPT, "default_ttl"),
+        ttl_display,
+        c(DIM, &format!("({})", ttl_src)),
+    );
 
     // show_input: config/default
     let (show_val, show_src) = if let Some(show) = config.show_input {

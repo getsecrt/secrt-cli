@@ -407,7 +407,7 @@ fn config_shows_default_ttl() {
 }
 
 #[test]
-fn config_shows_default_ttl_not_set() {
+fn config_shows_default_ttl_server_default() {
     let cfg_dir = setup_config("base_url = \"https://ok.com\"\n");
     let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
         .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
@@ -421,8 +421,13 @@ fn config_shows_default_ttl_not_set() {
         err
     );
     assert!(
-        err.contains("(not set)"),
-        "config should show not set for default_ttl: {}",
+        err.contains("24h"),
+        "config should show server default 24h: {}",
+        err
+    );
+    assert!(
+        err.contains("server default"),
+        "config should indicate server default: {}",
         err
     );
     let _ = fs::remove_dir_all(&cfg_dir);
