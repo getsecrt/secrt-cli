@@ -215,7 +215,7 @@ pub fn parse_flags(args: &[String]) -> Result<ParsedArgs, CliError> {
             "--show" | "-s" => pa.show = true,
             "--hidden" => pa.hidden = true,
             "--silent" => pa.silent = true,
-            "--passphrase-prompt" => pa.passphrase_prompt = true,
+            "--passphrase-prompt" | "-p" => pa.passphrase_prompt = true,
             "--passphrase-env" => {
                 i += 1;
                 if i >= args.len() {
@@ -544,7 +544,7 @@ pub fn print_create_help(deps: &mut Deps) {
   {}                    Trim leading/trailing whitespace\n\
   {}         Show input as you type\n\
   {}                  Hide input (default, overrides --show)\n\
-  {}       Prompt for passphrase\n\
+  {}  Prompt for passphrase\n\
   {} {}   Read passphrase from env var\n\
   {} {}  Read passphrase from file\n\
   {} {}          Server URL\n\
@@ -576,7 +576,7 @@ pub fn print_create_help(deps: &mut Deps) {
         c(OPT, "--trim"),
         c(OPT, "-s, --show"),
         c(OPT, "--hidden"),
-        c(OPT, "--passphrase-prompt"),
+        c(OPT, "-p, --passphrase-prompt"),
         c(OPT, "--passphrase-env"),
         c(ARG, "<name>"),
         c(OPT, "--passphrase-file"),
@@ -609,7 +609,7 @@ pub fn print_claim_help(deps: &mut Deps) {
         "{} {} — Retrieve and decrypt a secret\n\n\
 {}\n  {} {} {} {}\n\n\
 {}\n\
-  {}       Prompt for passphrase\n\
+  {}  Prompt for passphrase\n\
   {} {}   Read passphrase from env var\n\
   {} {}  Read passphrase from file\n\
   {} {}          Server URL\n\
@@ -626,7 +626,7 @@ pub fn print_claim_help(deps: &mut Deps) {
         c(ARG, "<share-url>"),
         c(ARG, "[options]"),
         c(HEADING, "OPTIONS"),
-        c(OPT, "--passphrase-prompt"),
+        c(OPT, "-p, --passphrase-prompt"),
         c(OPT, "--passphrase-env"),
         c(ARG, "<name>"),
         c(OPT, "--passphrase-file"),
@@ -786,6 +786,12 @@ mod tests {
     #[test]
     fn flags_passphrase_prompt() {
         let pa = parse_flags(&s(&["--passphrase-prompt"])).unwrap();
+        assert!(pa.passphrase_prompt);
+    }
+
+    #[test]
+    fn flags_passphrase_prompt_short() {
+        let pa = parse_flags(&s(&["-p"])).unwrap();
         assert!(pa.passphrase_prompt);
     }
 

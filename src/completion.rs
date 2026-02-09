@@ -69,7 +69,7 @@ _secrt() {
                         '--silent[Suppress status output]' \
                         {-m,--multi-line}'[Multi-line input]' \
                         '--trim[Trim whitespace]' \
-                        '--passphrase-prompt[Prompt for passphrase]' \
+                        {-p,--passphrase-prompt}'[Prompt for passphrase]' \
                         '--passphrase-env[Passphrase env var]:var:' \
                         '--passphrase-file[Passphrase file]:file:_files' \
                         '--help[Show help]'
@@ -79,7 +79,7 @@ _secrt() {
                         '--base-url[Server URL]:url:' \
                         '--json[Output as JSON]' \
                         '--silent[Suppress status output]' \
-                        '--passphrase-prompt[Prompt for passphrase]' \
+                        {-p,--passphrase-prompt}'[Prompt for passphrase]' \
                         '--passphrase-env[Passphrase env var]:var:' \
                         '--passphrase-file[Passphrase file]:file:_files' \
                         '--help[Show help]'
@@ -128,14 +128,14 @@ complete -c secrt -n '__fish_seen_subcommand_from create' -l hidden -d 'Hide inp
 complete -c secrt -n '__fish_seen_subcommand_from create' -l silent -d 'Suppress status output'
 complete -c secrt -n '__fish_seen_subcommand_from create' -s m -l multi-line -d 'Multi-line input'
 complete -c secrt -n '__fish_seen_subcommand_from create' -l trim -d 'Trim whitespace'
-complete -c secrt -n '__fish_seen_subcommand_from create' -l passphrase-prompt -d 'Prompt for passphrase'
+complete -c secrt -n '__fish_seen_subcommand_from create' -s p -l passphrase-prompt -d 'Prompt for passphrase'
 complete -c secrt -n '__fish_seen_subcommand_from create' -l passphrase-env -d 'Passphrase env var'
 complete -c secrt -n '__fish_seen_subcommand_from create' -l passphrase-file -d 'Passphrase file' -F
 
 complete -c secrt -n '__fish_seen_subcommand_from claim' -l base-url -d 'Server URL'
 complete -c secrt -n '__fish_seen_subcommand_from claim' -l json -d 'Output as JSON'
 complete -c secrt -n '__fish_seen_subcommand_from claim' -l silent -d 'Suppress status output'
-complete -c secrt -n '__fish_seen_subcommand_from claim' -l passphrase-prompt -d 'Prompt for passphrase'
+complete -c secrt -n '__fish_seen_subcommand_from claim' -s p -l passphrase-prompt -d 'Prompt for passphrase'
 complete -c secrt -n '__fish_seen_subcommand_from claim' -l passphrase-env -d 'Passphrase env var'
 complete -c secrt -n '__fish_seen_subcommand_from claim' -l passphrase-file -d 'Passphrase file' -F
 
