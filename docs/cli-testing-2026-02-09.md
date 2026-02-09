@@ -48,9 +48,10 @@ Both `secrt config --help` and `secrt help config` now work.
 Limit is ~128-175KB. Server returns generic `400: invalid request body`.  
 **Suggestion:** Document limit in README, improve error message.
 
-### 3. Server errors could be friendlier
-- `404: not found` → "Secret not found (already claimed or expired)"
+### 3. Some server errors could be friendlier
 - `401: unauthorized` → "Invalid or missing API key"
+
+**Note:** The `404: not found` response is intentionally opaque — revealing "already claimed" vs "expired" vs "never existed" would leak information to attackers probing the system. Keep it vague.
 
 ### 4. `--show --hidden` conflict silent
 Conflicting flags silently resolve (--hidden wins).  
@@ -66,7 +67,7 @@ Conflicting flags silently resolve (--hidden wins).
 
 3. **`--output <file>` for claim** — Write directly to file instead of stdout.
 
-4. **Friendlier server errors** — Map HTTP status codes to helpful messages.
+4. **Friendlier auth errors** — `401` could say "Invalid or missing API key" (but keep `404` opaque for security).
 
 ---
 
