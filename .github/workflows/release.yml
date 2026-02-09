@@ -162,7 +162,7 @@ jobs:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
         run: |
           codesign --sign "Developer ID Application: Joseph Lien (A93Q7MKECL)" \
-            --options runtime --timestamp \
+            --force --options runtime --timestamp \
             secrt-darwin-universal
           codesign --verify --verbose secrt-darwin-universal
 
