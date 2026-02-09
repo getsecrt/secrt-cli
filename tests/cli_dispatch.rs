@@ -1,5 +1,7 @@
 mod helpers;
 
+use std::fs;
+
 use helpers::{args, TestDepsBuilder};
 use secrt::cli;
 
@@ -354,4 +356,167 @@ fn completion_unknown() {
     let code = cli::run(&args(&["secrt", "completion", "powershell"]), &mut deps);
     assert_eq!(code, 2);
     assert!(stderr.to_string().contains("unsupported shell"));
+}
+
+// --- Config display tests for new fields ---
+
+/// Helper to create a temp config dir with a config.toml containing the given TOML content.
+fn setup_config(toml_content: &str) -> std::path::PathBuf {
+    let id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("secrt_dispatch_test_{}", id));
+    let secrt_dir = dir.join("secrt");
+    let _ = fs::create_dir_all(&secrt_dir);
+    let config_path = secrt_dir.join("config.toml");
+    fs::write(&config_path, toml_content).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600));
+    }
+    dir
+}
+
+#[test]
+fn config_shows_default_ttl() {
+    let cfg_dir = setup_config("default_ttl = \"2h\"\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "config"]), &mut deps);
+    assert_eq!(code, 0);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("default_ttl"),
+        "config should show default_ttl: {}",
+        err
+    );
+    assert!(
+        err.contains("2h"),
+        "config should show default_ttl value: {}",
+        err
+    );
+    assert!(
+        err.contains("config file"),
+        "config should show source: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn config_shows_default_ttl_not_set() {
+    let cfg_dir = setup_config("base_url = \"https://ok.com\"\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "config"]), &mut deps);
+    assert_eq!(code, 0);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("default_ttl"),
+        "config should show default_ttl field: {}",
+        err
+    );
+    assert!(
+        err.contains("(not set)"),
+        "config should show not set for default_ttl: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn config_shows_decryption_passphrases_masked() {
+    let cfg_dir = setup_config("decryption_passphrases = [\"secret1\", \"secret2\"]\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "config"]), &mut deps);
+    assert_eq!(code, 0);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("decryption_passphrases"),
+        "config should show field: {}",
+        err
+    );
+    assert!(
+        err.contains("2 entries"),
+        "config should show entry count: {}",
+        err
+    );
+    // Should NOT reveal actual values
+    assert!(
+        !err.contains("secret1"),
+        "config should NOT reveal values: {}",
+        err
+    );
+    assert!(
+        !err.contains("secret2"),
+        "config should NOT reveal values: {}",
+        err
+    );
+    // Should contain bullet chars (masked)
+    assert!(
+        err.contains("\u{2022}"),
+        "config should show masked values: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn config_shows_decryption_passphrases_not_set() {
+    let cfg_dir = setup_config("base_url = \"https://ok.com\"\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "config"]), &mut deps);
+    assert_eq!(code, 0);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("decryption_passphrases"),
+        "config should show field: {}",
+        err
+    );
+    // Should show (not set) for decryption_passphrases
+    // The "(not set)" text appears for each unset field
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn config_init_template_has_all_fields() {
+    let dir = std::env::temp_dir().join("secrt_config_template_check");
+    let _ = fs::remove_dir_all(&dir);
+
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .env("XDG_CONFIG_HOME", dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "config", "init"]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+
+    let config_path = dir.join("secrt").join("config.toml");
+    let contents = fs::read_to_string(&config_path).unwrap();
+    assert!(contents.contains("base_url"), "template missing base_url");
+    assert!(contents.contains("api_key"), "template missing api_key");
+    assert!(
+        contents.contains("default_ttl"),
+        "template missing default_ttl"
+    );
+    assert!(
+        contents.contains("passphrase"),
+        "template missing passphrase"
+    );
+    assert!(
+        contents.contains("decryption_passphrases"),
+        "template missing decryption_passphrases"
+    );
+    assert!(
+        contents.contains("show_input"),
+        "template missing show_input"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
 }

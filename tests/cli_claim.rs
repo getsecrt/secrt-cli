@@ -1,5 +1,7 @@
 mod helpers;
 
+use std::fs;
+
 use helpers::{args, TestDepsBuilder};
 use secrt::cli;
 use secrt::client::ClaimResponse;
@@ -29,11 +31,7 @@ fn seal_test_secret(plaintext: &[u8], passphrase: &str) -> (String, envelope::Se
         passphrase: passphrase.to_string(),
         rand_bytes: &real_rand,
         hint: None,
-        iterations: if passphrase.is_empty() {
-            0
-        } else {
-            300_000
-        },
+        iterations: if passphrase.is_empty() { 0 } else { 300_000 },
     })
     .unwrap();
     let share_link = envelope::format_share_link(
@@ -117,9 +115,7 @@ fn claim_success_plain() {
         envelope: seal_result.envelope,
         expires_at: "2026-02-09T00:00:00Z".into(),
     };
-    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
-        .mock_claim(Ok(mock_resp))
-        .build();
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new().mock_claim(Ok(mock_resp)).build();
     let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     assert_eq!(stdout.to_string(), "hello from mock claim");
@@ -178,21 +174,13 @@ fn claim_success_json() {
         envelope: seal_result.envelope,
         expires_at: "2026-02-09T12:00:00Z".into(),
     };
-    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
-        .mock_claim(Ok(mock_resp))
-        .build();
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new().mock_claim(Ok(mock_resp)).build();
     let code = cli::run(&args(&["secrt", "claim", &share_link, "--json"]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     let out = stdout.to_string();
     let json: serde_json::Value = serde_json::from_str(out.trim()).expect("invalid JSON output");
-    assert_eq!(
-        json["plaintext"].as_str().unwrap(),
-        "json claim test"
-    );
-    assert_eq!(
-        json["expires_at"].as_str().unwrap(),
-        "2026-02-09T12:00:00Z"
-    );
+    assert_eq!(json["plaintext"].as_str().unwrap(), "json claim test");
+    assert_eq!(json["expires_at"].as_str().unwrap(), "2026-02-09T12:00:00Z");
 }
 
 #[test]
@@ -204,9 +192,7 @@ fn claim_success_json_with_unicode() {
         envelope: seal_result.envelope,
         expires_at: "2026-02-09T12:00:00Z".into(),
     };
-    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
-        .mock_claim(Ok(mock_resp))
-        .build();
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new().mock_claim(Ok(mock_resp)).build();
     let code = cli::run(&args(&["secrt", "claim", &share_link, "--json"]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     let out = stdout.to_string();
@@ -226,16 +212,17 @@ fn claim_success_json_with_binary() {
         envelope: seal_result.envelope,
         expires_at: "2026-02-09T12:00:00Z".into(),
     };
-    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
-        .mock_claim(Ok(mock_resp))
-        .build();
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new().mock_claim(Ok(mock_resp)).build();
     let code = cli::run(&args(&["secrt", "claim", &share_link, "--json"]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     let out = stdout.to_string();
     let json: serde_json::Value = serde_json::from_str(out.trim()).expect("invalid JSON output");
     // Lossy conversion replaces invalid bytes with U+FFFD (replacement character)
     let plaintext_str = json["plaintext"].as_str().unwrap();
-    assert!(plaintext_str.contains('\u{FFFD}'), "Binary data should contain replacement chars");
+    assert!(
+        plaintext_str.contains('\u{FFFD}'),
+        "Binary data should contain replacement chars"
+    );
 }
 
 #[test]
@@ -251,13 +238,7 @@ fn claim_success_with_passphrase() {
         .env("MY_PASS", "mypass")
         .build();
     let code = cli::run(
-        &args(&[
-            "secrt",
-            "claim",
-            &share_link,
-            "--passphrase-env",
-            "MY_PASS",
-        ]),
+        &args(&["secrt", "claim", &share_link, "--passphrase-env", "MY_PASS"]),
         &mut deps,
     );
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
@@ -270,17 +251,12 @@ fn claim_decryption_error() {
     let (_share_link, seal_result) = seal_test_secret(plaintext, "");
     // Use a different key in the share URL so decryption fails
     let bad_key = vec![99u8; 32];
-    let bad_share_link = envelope::format_share_link(
-        "https://secrt.ca/s/mock-id",
-        &bad_key,
-    );
+    let bad_share_link = envelope::format_share_link("https://secrt.ca/s/mock-id", &bad_key);
     let mock_resp = ClaimResponse {
         envelope: seal_result.envelope,
         expires_at: "2026-02-09T00:00:00Z".into(),
     };
-    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
-        .mock_claim(Ok(mock_resp))
-        .build();
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new().mock_claim(Ok(mock_resp)).build();
     let code = cli::run(&args(&["secrt", "claim", &bad_share_link]), &mut deps);
     assert_eq!(code, 1);
     assert!(
@@ -373,11 +349,7 @@ fn claim_passphrase_auto_prompt_shows_key_symbol() {
     let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     let err = stderr.to_string();
-    assert!(
-        err.contains("\u{26b7}"),
-        "should show key symbol: {}",
-        err
-    );
+    assert!(err.contains("\u{26b7}"), "should show key symbol: {}", err);
 }
 
 #[test]
@@ -427,11 +399,7 @@ fn claim_passphrase_non_tty_errors_with_hint() {
         "should mention passphrase-protected: {}",
         err
     );
-    assert!(
-        err.contains("-p"),
-        "should hint at -p flag: {}",
-        err
-    );
+    assert!(err.contains("-p"), "should hint at -p flag: {}", err);
 }
 
 #[test]
@@ -652,20 +620,209 @@ fn claim_passphrase_json_non_tty_error() {
         .is_tty(false)
         .mock_claim(Ok(mock_resp))
         .build();
-    let code = cli::run(
-        &args(&["secrt", "claim", &share_link, "--json"]),
-        &mut deps,
-    );
+    let code = cli::run(&args(&["secrt", "claim", &share_link, "--json"]), &mut deps);
     assert_eq!(code, 1);
     let err = stderr.to_string();
-    assert!(
-        err.contains("\"error\""),
-        "should be JSON error: {}",
-        err
-    );
+    assert!(err.contains("\"error\""), "should be JSON error: {}", err);
     assert!(
         err.contains("passphrase-protected"),
         "should mention passphrase: {}",
         err
     );
+}
+
+// --- Decryption passphrase list tests ---
+
+/// Helper to create a temp config dir with a config.toml containing the given TOML content.
+/// Returns the path to use as XDG_CONFIG_HOME.
+fn setup_config(toml_content: &str) -> std::path::PathBuf {
+    let id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("secrt_test_cfg_{}", id));
+    let secrt_dir = dir.join("secrt");
+    let _ = fs::create_dir_all(&secrt_dir);
+    let config_path = secrt_dir.join("config.toml");
+    fs::write(&config_path, toml_content).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600));
+    }
+    dir
+}
+
+#[test]
+fn claim_passphrase_list_first_matches() {
+    let plaintext = b"list first match";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let cfg_dir = setup_config("decryption_passphrases = [\"correct\", \"other\"]\n");
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "list first match");
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_list_second_matches() {
+    let plaintext = b"list second match";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let cfg_dir = setup_config("decryption_passphrases = [\"wrong\", \"correct\"]\n");
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "list second match");
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_default_tried_before_list() {
+    let plaintext = b"default first";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "default-pass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // passphrase (default) = "default-pass", list has different entries
+    let cfg_dir = setup_config(
+        "passphrase = \"default-pass\"\ndecryption_passphrases = [\"other1\", \"other2\"]\n",
+    );
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "default first");
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_list_no_match_non_tty_error() {
+    let plaintext = b"no match";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "actual-pass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let cfg_dir = setup_config("decryption_passphrases = [\"wrong1\", \"wrong2\"]\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 1);
+    let err = stderr.to_string();
+    assert!(
+        err.contains("tried 2 configured passphrase"),
+        "should mention tried count: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_list_no_match_tty_falls_through_to_prompt() {
+    let plaintext = b"tty prompt fallback";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let cfg_dir = setup_config("decryption_passphrases = [\"wrong1\"]\n");
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(true)
+        .mock_claim(Ok(mock_resp))
+        .read_pass(&["correct"])
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "tty prompt fallback");
+    let err = stderr.to_string();
+    assert!(
+        err.contains("didn't match"),
+        "should mention list didn't match: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_explicit_flag_bypasses_list() {
+    let plaintext = b"explicit bypasses list";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "correct");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    // Config has the correct passphrase in list, but explicit --passphrase-env with wrong value
+    let cfg_dir = setup_config("decryption_passphrases = [\"correct\"]\n");
+    let (mut deps, _stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .env("BAD_PASS", "wrong")
+        .build();
+    let code = cli::run(
+        &args(&[
+            "secrt",
+            "claim",
+            &share_link,
+            "--passphrase-env",
+            "BAD_PASS",
+        ]),
+        &mut deps,
+    );
+    assert_eq!(code, 1, "explicit flag should bypass list");
+    let err = stderr.to_string();
+    assert!(
+        err.contains("decryption failed"),
+        "should fail with decryption error: {}",
+        err
+    );
+    let _ = fs::remove_dir_all(&cfg_dir);
+}
+
+#[test]
+fn claim_passphrase_list_deduplication() {
+    // If default passphrase and list contain the same value, it should only be tried once
+    let plaintext = b"dedup test";
+    let (share_link, seal_result) = seal_test_secret(plaintext, "same-pass");
+    let mock_resp = ClaimResponse {
+        envelope: seal_result.envelope,
+        expires_at: "2026-02-09T00:00:00Z".into(),
+    };
+    let cfg_dir = setup_config(
+        "passphrase = \"same-pass\"\ndecryption_passphrases = [\"same-pass\", \"other\"]\n",
+    );
+    let (mut deps, stdout, stderr) = TestDepsBuilder::new()
+        .is_tty(false)
+        .mock_claim(Ok(mock_resp))
+        .env("XDG_CONFIG_HOME", cfg_dir.to_str().unwrap())
+        .build();
+    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
+    assert_eq!(code, 0, "stderr: {}", stderr.to_string());
+    assert_eq!(stdout.to_string(), "dedup test");
+    let _ = fs::remove_dir_all(&cfg_dir);
 }
