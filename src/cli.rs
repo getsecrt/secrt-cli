@@ -355,6 +355,13 @@ fn run_config_show(deps: &mut Deps) -> i32 {
         c(DIM, &config_path),
         if config_exists { "" } else { "(not found)" },
     );
+    if !config_exists {
+        let _ = writeln!(
+            deps.stderr,
+            "  Run {} to create one.",
+            c(CMD, "secrt config init"),
+        );
+    }
 
     let _ = writeln!(deps.stderr);
     let _ = writeln!(deps.stderr, "{}", c(HEADING, "EFFECTIVE SETTINGS"));
