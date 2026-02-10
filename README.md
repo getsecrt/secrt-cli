@@ -74,7 +74,7 @@ Reads the secret interactively on a TTY, or from **stdin** when piped. Use `--te
 |---|---|
 | `--ttl <ttl>` | Time-to-live (e.g. `30s`, `5m`, `2h`, `1d`, `1w`) |
 | `--text <value>` | Secret text inline (visible in shell history) |
-| `--file <path>` | Read secret from a file |
+| `-f`, `--file <path>` | Read secret from a file |
 | `-m`, `--multi-line` | Multi-line input (read until Ctrl+D) |
 | `--trim` | Trim leading/trailing whitespace from input |
 | `-s`, `--show` | Show input as you type (default: hidden) |
@@ -294,6 +294,36 @@ make test      # Run tests
 make check     # Clippy + fmt check
 make size      # Show release binary size
 ```
+
+### Build optimization
+
+The release profile uses `opt-level = "z"` (optimize for binary size) with full LTO. This
+produces the smallest binary but slows down PBKDF2 passphrase derivation by ~1.7x compared
+to speed-optimized builds.
+
+| `opt-level` | Binary size | PBKDF2 (600K iter) | Notes |
+|---|---|---|---|
+| `"z"` | ~1,484 KB | ~111 ms | **Current default.** Smallest binary. |
+| `"s"` | ~1,642 KB | ~66 ms | Mild size optimization. |
+| `"2"` | ~1,642 KB | ~65 ms | Default Rust release level. |
+| `"3"` | ~1,642 KB | ~66 ms | Max speed — no meaningful gain over `"2"`. |
+
+*Measured on Apple M1 Max, macOS, `aarch64`. Results vary by platform.*
+
+**Why not exempt `ring` from size optimization?** The `Cargo.toml` includes
+`[profile.release.package.ring] opt-level = 3`, but full LTO (`lto = true`) merges all
+crates into a single compilation unit and re-optimizes globally, effectively overriding
+per-package settings. This override is kept for correctness in case LTO is disabled.
+
+**Why `"z"` is the default:** The 111 ms PBKDF2 cost is imperceptible to users (passphrase
+operations take ~100 ms total either way), while the ~160 KB size savings benefits
+distribution. If profiling shows the crypto overhead matters for your use case, change
+`opt-level` to `"s"` in `Cargo.toml`.
+
+**UPX compression** is not viable: on macOS arm64, UPX-packed binaries are killed by the
+OS due to W^X memory protection (code signing cannot be preserved). On Linux/Windows UPX
+can reduce binaries by ~40%, but triggers false positives from malware scanners, making it
+unsuitable for a security-focused tool.
 
 ## License
 

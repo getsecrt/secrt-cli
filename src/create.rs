@@ -165,14 +165,15 @@ pub fn run_create(args: &[String], deps: &mut Deps) -> i32 {
     0
 }
 
-/// Format ISO 8601 timestamp to "Expires YYYY-MM-DD HH:MM"
+/// Format ISO 8601 UTC timestamp to "Expires YYYY-MM-DD HH:MM TZ" in local time.
 fn format_expires(iso: &str) -> String {
-    // Input: "2026-02-10T09:30:00Z" or similar
-    // Output: "Expires 2026-02-10 09:30"
-    if iso.len() >= 16 {
-        let date = &iso[0..10]; // YYYY-MM-DD
-        let time = &iso[11..16]; // HH:MM
-        format!("Expires {} {}", date, time)
+    use chrono::{DateTime, Local, Utc};
+
+    if let Ok(utc) = iso.parse::<DateTime<Utc>>() {
+        let local = utc.with_timezone(&Local);
+        format!("Expires {}", local.format("%Y-%m-%d %H:%M %Z"))
+    } else if iso.len() >= 16 {
+        format!("Expires {} {} UTC", &iso[0..10], &iso[11..16])
     } else {
         format!("Expires {}", iso)
     }
