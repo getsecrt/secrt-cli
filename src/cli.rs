@@ -61,6 +61,7 @@ pub struct ParsedArgs {
     pub passphrase_prompt: bool,
     pub passphrase_env: String,
     pub passphrase_file: String,
+    pub no_passphrase: bool,
 
     // Claim
     pub output: String,
@@ -241,6 +242,7 @@ pub fn parse_flags(args: &[String]) -> Result<ParsedArgs, CliError> {
             "--silent" => pa.silent = true,
             "--output" | "-o" => pa.output = next_val!("--output"),
             "--passphrase-prompt" | "-p" => pa.passphrase_prompt = true,
+            "--no-passphrase" | "-n" => pa.no_passphrase = true,
             "--passphrase-env" => pa.passphrase_env = next_val!("--passphrase-env"),
             "--passphrase-file" => pa.passphrase_file = next_val!("--passphrase-file"),
             _ => return Err(CliError::Error(format!("unknown flag: {}", arg))),
@@ -889,6 +891,7 @@ pub fn print_create_help(deps: &mut Deps) {
         ("-s, --show",              "",        "Show input as you type"),
         ("--hidden",                "",        "Hide input (default, overrides --show)"),
         ("-p, --passphrase-prompt", "",        "Prompt for passphrase"),
+        ("-n, --no-passphrase",     "",        "Skip default passphrase"),
         ("--passphrase-env",        "<name>",  "Read passphrase from env var"),
         ("--passphrase-file",       "<path>",  "Read passphrase from file"),
         ("--base-url",              "<url>",   "Server URL"),
@@ -915,6 +918,7 @@ pub fn print_claim_help(deps: &mut Deps) {
     write_option_rows(w, &c, &[
         ("-o, --output",            "<path>", "Write output to file (use - for stdout)"),
         ("-p, --passphrase-prompt", "",        "Prompt for passphrase"),
+        ("-n, --no-passphrase",     "",        "Skip configured decryption passphrases"),
         ("--passphrase-env",        "<name>",  "Read passphrase from env var"),
         ("--passphrase-file",       "<path>",  "Read passphrase from file"),
         ("--base-url",              "<url>",   "Server URL"),
@@ -1188,6 +1192,18 @@ mod tests {
         assert_eq!(pa.ttl, "5m");
     }
 
+    #[test]
+    fn flags_no_passphrase() {
+        let pa = parse_flags(&s(&["--no-passphrase"])).unwrap();
+        assert!(pa.no_passphrase);
+    }
+
+    #[test]
+    fn flags_no_passphrase_short() {
+        let pa = parse_flags(&s(&["-n"])).unwrap();
+        assert!(pa.no_passphrase);
+    }
+
     // --- --flag=value tests ---
 
     #[test]
@@ -1324,6 +1340,8 @@ mod tests {
         // Passphrase flags — create + claim
         ("-p", false, &["create", "claim"]),
         ("--passphrase-prompt", false, &["create", "claim"]),
+        ("-n", false, &["create", "claim"]),
+        ("--no-passphrase", false, &["create", "claim"]),
         ("--passphrase-env", true, &["create", "claim"]),
         ("--passphrase-file", true, &["create", "claim"]),
         // Claim flags

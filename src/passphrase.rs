@@ -17,6 +17,12 @@ pub fn resolve_passphrase(args: &ParsedArgs, deps: &mut Deps) -> Result<String, 
     if !args.passphrase_file.is_empty() {
         count += 1;
     }
+    if args.no_passphrase && count > 0 {
+        return Err(
+            "--no-passphrase cannot be combined with --passphrase-prompt, --passphrase-env, or --passphrase-file"
+                .into(),
+        );
+    }
     if count > 1 {
         return Err(
             "specify at most one of --passphrase-prompt, --passphrase-env, --passphrase-file"
@@ -24,8 +30,8 @@ pub fn resolve_passphrase(args: &ParsedArgs, deps: &mut Deps) -> Result<String, 
         );
     }
     if count == 0 {
-        // Fall back to config file passphrase if set
-        if !args.passphrase_default.is_empty() {
+        // Fall back to config file passphrase if set (unless --no-passphrase)
+        if !args.no_passphrase && !args.passphrase_default.is_empty() {
             return Ok(args.passphrase_default.clone());
         }
         return Ok(String::new());
@@ -78,6 +84,12 @@ pub fn resolve_passphrase_for_create(args: &ParsedArgs, deps: &mut Deps) -> Resu
     }
     if !args.passphrase_file.is_empty() {
         count += 1;
+    }
+    if args.no_passphrase && count > 0 {
+        return Err(
+            "--no-passphrase cannot be combined with --passphrase-prompt, --passphrase-env, or --passphrase-file"
+                .into(),
+        );
     }
     if count > 1 {
         return Err(
@@ -298,6 +310,38 @@ mod tests {
         assert_eq!(result, "from-config");
     }
 
+    #[test]
+    fn no_passphrase_skips_default() {
+        let mut deps = default_deps();
+        let mut pa = ParsedArgs::default();
+        pa.passphrase_default = "from-config".into();
+        pa.no_passphrase = true;
+        let result = resolve_passphrase(&pa, &mut deps).unwrap();
+        assert_eq!(result, "", "--no-passphrase should skip default");
+    }
+
+    #[test]
+    fn no_passphrase_conflicts_with_prompt() {
+        let mut deps = default_deps();
+        let mut pa = ParsedArgs::default();
+        pa.no_passphrase = true;
+        pa.passphrase_prompt = true;
+        let err = resolve_passphrase(&pa, &mut deps);
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("--no-passphrase cannot be combined"));
+    }
+
+    #[test]
+    fn no_passphrase_conflicts_with_env() {
+        let mut deps = default_deps();
+        let mut pa = ParsedArgs::default();
+        pa.no_passphrase = true;
+        pa.passphrase_env = "MY_VAR".into();
+        let err = resolve_passphrase(&pa, &mut deps);
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("--no-passphrase cannot be combined"));
+    }
+
     // --- resolve_passphrase_for_create tests ---
 
     #[test]
@@ -346,6 +390,27 @@ mod tests {
         let err = resolve_passphrase_for_create(&pa, &mut deps);
         assert!(err.is_err());
         assert!(err.unwrap_err().contains("at most one"));
+    }
+
+    #[test]
+    fn create_no_passphrase_skips_default() {
+        let mut deps = default_deps();
+        let mut pa = ParsedArgs::default();
+        pa.passphrase_default = "from-config".into();
+        pa.no_passphrase = true;
+        let result = resolve_passphrase_for_create(&pa, &mut deps).unwrap();
+        assert_eq!(result, "", "--no-passphrase should skip default on create");
+    }
+
+    #[test]
+    fn create_no_passphrase_conflicts_with_prompt() {
+        let mut deps = default_deps();
+        let mut pa = ParsedArgs::default();
+        pa.no_passphrase = true;
+        pa.passphrase_prompt = true;
+        let err = resolve_passphrase_for_create(&pa, &mut deps);
+        assert!(err.is_err());
+        assert!(err.unwrap_err().contains("--no-passphrase cannot be combined"));
     }
 
     // --- write_error tests ---
