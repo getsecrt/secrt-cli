@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,6 +30,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
+      HAS_AZURE_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' }}
     strategy:
       fail-fast: true
       matrix:
@@ -101,8 +103,18 @@ jobs:
             target/${{ matrix.target }}/release/secrt
           codesign --verify --verbose target/${{ matrix.target }}/release/secrt
 
-      # TODO: Windows code signing with SSL.com eSigner (task #5)
-      # CodeSignTool sign -input_file_path=secrt.exe ...
+      # Windows code signing via Azure Artifact Signing
+      - name: Sign Windows binary
+        if: runner.os == 'Windows' && env.HAS_AZURE_SIGNING == 'true'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://wus.codesigning.azure.net/
+          signing-account-name: jdlien-signing
+          certificate-profile-name: jdlien-public-trust
+          files: ${{ github.workspace }}/target/${{ matrix.target }}/release/secrt.exe
 
       - name: Rename binary (unix)
         if: runner.os != 'Windows'
@@ -188,6 +200,7 @@ jobs:
 
   release:
     name: Publish release
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build, universal-macos]
     runs-on: ubuntu-latest
     steps:

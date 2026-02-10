@@ -218,10 +218,10 @@ pub fn parse_flags(args: &[String]) -> Result<ParsedArgs, CliError> {
                 }
                 pa.text = args[i].clone();
             }
-            "--file" => {
+            "--file" | "-f" => {
                 i += 1;
                 if i >= args.len() {
-                    return Err(CliError::Error("--file requires a value".into()));
+                    return Err(CliError::Error("-f/--file requires a value".into()));
                 }
                 pa.file = args[i].clone();
             }
@@ -883,7 +883,7 @@ pub fn print_create_help(deps: &mut Deps) {
 {}\n\
   {} {}                   TTL for the secret (e.g., 5m, 2h, 1d)\n\
   {} {}                Secret text (visible in shell history)\n\
-  {} {}                 Read secret from file\n\
+  {} {}             Read secret from a file\n\
   {}              Multi-line input (read until Ctrl+D)\n\
   {}                        Trim leading/trailing whitespace\n\
   {}                    Show input as you type\n\
@@ -914,7 +914,7 @@ pub fn print_create_help(deps: &mut Deps) {
         c(ARG, "<ttl>"),
         c(OPT, "--text"),
         c(ARG, "<value>"),
-        c(OPT, "--file"),
+        c(OPT, "-f, --file"),
         c(ARG, "<path>"),
         c(OPT, "-m, --multi-line"),
         c(OPT, "--trim"),
@@ -935,7 +935,7 @@ pub fn print_create_help(deps: &mut Deps) {
         c(HEADING, "INPUT"),
         c(OPT, "-m"),
         c(OPT, "--text"),
-        c(OPT, "--file"),
+        c(OPT, "-f/--file"),
         c(HEADING, "EXAMPLES"),
         c(CMD, "secrt"),
         c(CMD, "create"),
