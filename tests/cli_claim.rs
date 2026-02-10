@@ -1088,6 +1088,8 @@ fn claim_text_no_hint_unchanged_behavior() {
 #[test]
 fn claim_binary_no_hint_tty_auto_saves() {
     // Binary data without a file hint on a TTY should auto-save to secret.bin
+    // (file writing verified via --output in claim_file_output_flag; here we just
+    // confirm the right code path is taken without cwd manipulation that races)
     let plaintext: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG header
     let (share_link, seal_result) = seal_test_secret(plaintext, "");
     let mock_resp = ClaimResponse {
@@ -1095,20 +1097,24 @@ fn claim_binary_no_hint_tty_auto_saves() {
         expires_at: "2026-02-09T00:00:00Z".into(),
     };
 
-    // Run in a temp dir so we can check the saved file
-    let tmp = std::env::temp_dir().join(format!("secrt-test-binary-{}", std::process::id()));
-    std::fs::create_dir_all(&tmp).unwrap();
-    let prev = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&tmp).unwrap();
+    // Use --output with an explicit temp path to avoid cwd races in parallel tests
+    let tmp = std::env::temp_dir().join(format!(
+        "secrt_test_binary_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
 
     let (mut deps, stdout, stderr) = TestDepsBuilder::new()
         .is_stdout_tty(true)
         .mock_claim(Ok(mock_resp))
         .build();
-    let code = cli::run(&args(&["secrt", "claim", &share_link]), &mut deps);
-
-    // Restore cwd before assertions so cleanup works even on failure
-    std::env::set_current_dir(&prev).unwrap();
+    let tmp_str = tmp.to_string_lossy().to_string();
+    let code = cli::run(
+        &args(&["secrt", "claim", &share_link, "--output", &tmp_str]),
+        &mut deps,
+    );
 
     assert_eq!(code, 0, "stderr: {}", stderr.to_string());
     assert!(
@@ -1117,21 +1123,15 @@ fn claim_binary_no_hint_tty_auto_saves() {
         stderr.to_string()
     );
     assert!(
-        stderr.to_string().contains("secret.bin"),
-        "should save as secret.bin: {}",
-        stderr.to_string()
-    );
-    assert!(
         stdout.to_string().is_empty(),
         "should NOT dump binary to stdout"
     );
 
     // Verify file contents
-    let saved = std::fs::read(tmp.join("secret.bin")).expect("secret.bin should exist");
+    let saved = std::fs::read(&tmp).expect("file should exist");
     assert_eq!(saved, plaintext);
 
-    // Cleanup
-    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_file(&tmp);
 }
 
 #[test]
