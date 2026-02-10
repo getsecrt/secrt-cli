@@ -64,6 +64,15 @@ echo "s3cret-password" | secrt send -p --ttl 5m
 # Claim a secret (auto-prompts for passphrase if needed)
 secrt get https://secrt.ca/s/abc123#v1.key...
 
+# Or just paste the URL directly (implicit get)
+secrt https://secrt.ca/s/abc123#v1.key...
+
+# Generate a password
+secrt gen
+
+# Generate and share in one step
+secrt send gen --ttl 1h
+
 # Burn a secret (requires API key)
 secrt burn abc123 --api-key sk_prefix.secret
 ```
@@ -124,6 +133,12 @@ echo "token" | secrt send --json --ttl 5m
 secrt get <share-url> [options]
 ```
 
+**Tip:** The `get` subcommand is optional — you can paste a share URL directly:
+
+```sh
+secrt https://secrt.ca/s/abc123#v1.key...
+```
+
 If the secret is passphrase-protected and a TTY is attached, `get` automatically prompts for the passphrase with unlimited retries. For non-interactive use, provide the passphrase via `--passphrase-env` or `--passphrase-file`.
 
 | Option | Description |
@@ -171,6 +186,67 @@ secrt burn abc123 --api-key sk_prefix.secret
 # Burn by share URL
 secrt burn https://secrt.ca/s/abc123#v1.key... --api-key sk_prefix.secret
 ```
+
+### `gen` — Generate a random password
+
+```
+secrt gen [options]
+```
+
+Generates cryptographically secure passwords using unbiased rejection sampling.
+
+| Option | Description |
+|---|---|
+| `-L`, `--length <n>` | Password length (default: 20) |
+| `-S`, `--no-symbols` | Exclude symbols |
+| `-N`, `--no-numbers` | Exclude digits |
+| `-C`, `--no-caps` | Exclude uppercase letters |
+| `-G`, `--grouped` | Group characters by type |
+| `--count <n>` | Generate multiple passwords |
+| `--json` | Output as JSON |
+
+**Character sets:**
+
+- Lowercase: `a-z` (always included)
+- Uppercase: `A-Z`
+- Digits: `0-9`
+- Symbols: `!@*^_+-=?`
+
+**Examples:**
+
+```sh
+# 20-char password with all character classes
+secrt gen
+
+# 32-char password, no symbols
+secrt gen -L 32 -S
+
+# Generate 5 passwords
+secrt gen --count 5
+
+# Grouped by character type (e.g., lowercase block, then digits, etc.)
+secrt gen -G
+
+# JSON output
+secrt gen --json
+```
+
+### `send gen` — Generate and share in one step
+
+Combine password generation with secret sharing:
+
+```sh
+# Generate a password and share it
+secrt send gen
+
+# With TTL and passphrase protection
+secrt send gen --ttl 1h -p
+
+# 32-char, no symbols, expires in 5 minutes
+secrt send gen -L 32 -S --ttl 5m
+```
+
+The generated password is printed to stderr (on TTY) or included as `"password"` in `--json` output, so you can see what was shared.
 
 ## Global options
 
