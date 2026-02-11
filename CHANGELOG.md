@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-02-11
+
+### Changed
+
+- **Shorter share URLs:** Dropped the `#v1.` prefix from URL fragments — the full fragment is now the base64url-encoded key directly (e.g., `#<key>` instead of `#v1.<key>`). Implicit `get` detection now matches any fragment with >= 22 base64url characters instead of looking for the literal `#v1.` prefix.
+
 ## 0.3.1 — 2026-02-10
 
 ### Fixed
