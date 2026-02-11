@@ -12,15 +12,13 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-# secrt
+A fast, small CLI for [secrt.ca](https://secrt.ca) — one-time secret sharing with zero-knowledge client-side encryption.
 
-A fast, minimal CLI for [secrt.ca](https://secrt.ca) — one-time secret sharing with zero-knowledge client-side encryption.
-
-Built in Rust. No async runtime, no framework overhead. AES-256-GCM + HKDF-SHA256 + optional PBKDF2 passphrase protection, all powered by [ring](https://github.com/briansmith/ring).
+Built in Rust. No async runtime, no framework overhead. AES-256-GCM + HKDF-SHA256 + optional PBKDF2 passphrase protection, powered by [ring](https://github.com/briansmith/ring).
 
 **Download:** [macOS (Universal)](https://github.com/getsecrt/secrt-rs/releases/latest/download/secrt-darwin-universal) | [Linux (x86_64)](https://github.com/getsecrt/secrt-rs/releases/latest/download/secrt-linux-amd64) | [Windows (x86_64)](https://github.com/getsecrt/secrt-rs/releases/latest/download/secrt-windows-amd64.exe) | [Windows (ARM64)](https://github.com/getsecrt/secrt-rs/releases/latest/download/secrt-windows-arm64.exe)
 
-> **Server project:** [getsecrt/secrt](https://github.com/getsecrt/secrt)
+> **Server project:** [getsecrt/secrt-server](https://github.com/getsecrt/secrt-server)
 
 ## Install
 
@@ -93,20 +91,20 @@ secrt send [options]
 
 Reads the secret interactively on a TTY, or from **stdin** when piped. Use `--text` or `--file` for alternatives (exactly one input source).
 
-| Option | Description |
-|---|---|
-| `--ttl <ttl>` | Time-to-live (e.g. `30s`, `5m`, `2h`, `1d`, `1w`) |
-| `--text <value>` | Secret text inline (visible in shell history) |
-| `-f`, `--file <path>` | Read secret from a file |
-| `-m`, `--multi-line` | Multi-line input (read until Ctrl+D) |
-| `--trim` | Trim leading/trailing whitespace from input |
-| `-s`, `--show` | Show input as you type (default: hidden) |
-| `--hidden` | Hide input (default; overrides `--show`) |
-| `-p`, `--passphrase-prompt` | Interactively prompt for a passphrase |
-| `--passphrase-env <name>` | Read passphrase from an environment variable |
-| `--passphrase-file <path>` | Read passphrase from a file |
-| `--json` | Output as JSON |
-| `--silent` | Suppress status output |
+| Option                      | Description                                       |
+| --------------------------- | ------------------------------------------------- |
+| `--ttl <ttl>`               | Time-to-live (e.g. `30s`, `5m`, `2h`, `1d`, `1w`) |
+| `--text <value>`            | Secret text inline (visible in shell history)     |
+| `-f`, `--file <path>`       | Read secret from a file                           |
+| `-m`, `--multi-line`        | Multi-line input (read until Ctrl+D)              |
+| `--trim`                    | Trim leading/trailing whitespace from input       |
+| `-s`, `--show`              | Show input as you type (default: hidden)          |
+| `--hidden`                  | Hide input (default; overrides `--show`)          |
+| `-p`, `--passphrase-prompt` | Interactively prompt for a passphrase             |
+| `--passphrase-env <name>`   | Read passphrase from an environment variable      |
+| `--passphrase-file <path>`  | Read passphrase from a file                       |
+| `--json`                    | Output as JSON                                    |
+| `--silent`                  | Suppress status output                            |
 
 **Examples:**
 
@@ -147,13 +145,13 @@ secrt https://secrt.ca/s/abc123#v1.key...
 
 If the secret is passphrase-protected and a TTY is attached, `get` automatically prompts for the passphrase with unlimited retries. For non-interactive use, provide the passphrase via `--passphrase-env` or `--passphrase-file`.
 
-| Option | Description |
-|---|---|
-| `-p`, `--passphrase-prompt` | Prompt for the passphrase |
-| `--passphrase-env <name>` | Read passphrase from an environment variable |
-| `--passphrase-file <path>` | Read passphrase from a file |
-| `--json` | Output as JSON |
-| `--silent` | Suppress status output |
+| Option                      | Description                                  |
+| --------------------------- | -------------------------------------------- |
+| `-p`, `--passphrase-prompt` | Prompt for the passphrase                    |
+| `--passphrase-env <name>`   | Read passphrase from an environment variable |
+| `--passphrase-file <path>`  | Read passphrase from a file                  |
+| `--json`                    | Output as JSON                               |
+| `--silent`                  | Suppress status output                       |
 
 **Examples:**
 
@@ -177,11 +175,11 @@ secrt get https://secrt.ca/s/abc123#v1.key... > secret.txt
 secrt burn <id-or-url> [options]
 ```
 
-| Option | Description |
-|---|---|
-| `--api-key <key>` | API key (required) |
-| `--json` | Output as JSON |
-| `--silent` | Suppress status output |
+| Option            | Description            |
+| ----------------- | ---------------------- |
+| `--api-key <key>` | API key (required)     |
+| `--json`          | Output as JSON         |
+| `--silent`        | Suppress status output |
 
 **Examples:**
 
@@ -201,15 +199,15 @@ secrt gen [options]
 
 Generates cryptographically secure passwords using unbiased rejection sampling.
 
-| Option | Description |
-|---|---|
+| Option               | Description                   |
+| -------------------- | ----------------------------- |
 | `-L`, `--length <n>` | Password length (default: 20) |
-| `-S`, `--no-symbols` | Exclude symbols |
-| `-N`, `--no-numbers` | Exclude digits |
-| `-C`, `--no-caps` | Exclude uppercase letters |
-| `-G`, `--grouped` | Group characters by type |
-| `--count <n>` | Generate multiple passwords |
-| `--json` | Output as JSON |
+| `-S`, `--no-symbols` | Exclude symbols               |
+| `-N`, `--no-numbers` | Exclude digits                |
+| `-C`, `--no-caps`    | Exclude uppercase letters     |
+| `-G`, `--grouped`    | Group characters by type      |
+| `--count <n>`        | Generate multiple passwords   |
+| `--json`             | Output as JSON                |
 
 **Character sets:**
 
@@ -256,21 +254,21 @@ The generated password is printed to stderr (on TTY) or included as `"password"`
 
 ## Global options
 
-| Option | Description |
-|---|---|
+| Option             | Description                              |
+| ------------------ | ---------------------------------------- |
 | `--base-url <url>` | Server URL (default: `https://secrt.ca`) |
-| `--api-key <key>` | API key for authenticated access |
-| `--json` | Output as JSON |
-| `--silent` | Suppress status output |
-| `-h`, `--help` | Show help |
-| `-v`, `--version` | Show version |
+| `--api-key <key>`  | API key for authenticated access         |
+| `--json`           | Output as JSON                           |
+| `--silent`         | Suppress status output                   |
+| `-h`, `--help`     | Show help                                |
+| `-v`, `--version`  | Show version                             |
 
 ## Environment variables
 
-| Variable | Description |
-|---|---|
-| `SECRET_BASE_URL` | Override the default server URL |
-| `SECRET_API_KEY` | API key (alternative to `--api-key`) |
+| Variable          | Description                          |
+| ----------------- | ------------------------------------ |
+| `SECRET_BASE_URL` | Override the default server URL      |
+| `SECRET_API_KEY`  | API key (alternative to `--api-key`) |
 
 ## Configuration
 
@@ -334,7 +332,7 @@ If the file is group- or world-readable, secrt will warn and **skip loading secr
 
 ### OS keychain
 
-When built with the `keychain` feature, secrt can read `api_key`, `passphrase`, and `decryption_passphrases` from your OS credential store (macOS Keychain, Linux keyutils, Windows Credential Manager). For `decryption_passphrases`, store a JSON array string (e.g., `["p1","p2"]`).
+When built with the `keychain` feature (the default), secrt can read `api_key`, `passphrase`, and `decryption_passphrases` from your OS credential store (macOS Keychain, Linux keyutils, Windows Credential Manager). For `decryption_passphrases`, store a JSON array string (e.g., `["p1","p2"]`).
 
 Keychain reads are **disabled by default** to avoid OS elevation prompts (e.g., macOS Keychain) on every command. To opt in, set `use_keychain = true` in your config file.
 
@@ -371,12 +369,12 @@ Envelope format: `v1-pbkdf2-hkdf-aes256gcm` — see the [spec](https://github.co
 Durations are a positive integer followed by a unit suffix:
 
 | Unit | Meaning | Example |
-|---|---|---|
-| `s` | Seconds | `30s` |
-| `m` | Minutes | `5m` |
-| `h` | Hours | `2h` |
-| `d` | Days | `1d` |
-| `w` | Weeks | `1w` |
+| ---- | ------- | ------- |
+| `s`  | Seconds | `30s`   |
+| `m`  | Minutes | `5m`    |
+| `h`  | Hours   | `2h`    |
+| `d`  | Days    | `1d`    |
+| `w`  | Weeks   | `1w`    |
 
 No suffix defaults to seconds. Maximum TTL is 1 year.
 
@@ -396,14 +394,14 @@ The release profile uses `opt-level = "z"` (optimize for binary size) with full 
 produces the smallest binary but slows down PBKDF2 passphrase derivation by ~1.7x compared
 to speed-optimized builds.
 
-| `opt-level` | Binary size | PBKDF2 (600K iter) | Notes |
-|---|---|---|---|
-| `"z"` | ~1,484 KB | ~111 ms | **Current default.** Smallest binary. |
-| `"s"` | ~1,642 KB | ~66 ms | Mild size optimization. |
-| `"2"` | ~1,642 KB | ~65 ms | Default Rust release level. |
-| `"3"` | ~1,642 KB | ~66 ms | Max speed — no meaningful gain over `"2"`. |
+| `opt-level` | Binary size | PBKDF2 (600K iter) | Notes                                      |
+| ----------- | ----------- | ------------------ | ------------------------------------------ |
+| `"z"`       | ~1,484 KB   | ~111 ms            | **Current default.** Smallest binary.      |
+| `"s"`       | ~1,642 KB   | ~66 ms             | Mild size optimization.                    |
+| `"2"`       | ~1,642 KB   | ~65 ms             | Default Rust release level.                |
+| `"3"`       | ~1,642 KB   | ~66 ms             | Max speed — no meaningful gain over `"2"`. |
 
-*Measured on Apple M2 Max, macOS, `aarch64`. Results vary by platform.*
+_Measured on Apple M2 Max, macOS, `aarch64`. Results vary by platform._
 
 **Why not exempt `ring` from size optimization?** The `Cargo.toml` includes
 `[profile.release.package.ring] opt-level = 3`, but full LTO (`lto = true`) merges all
